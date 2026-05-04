@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>NBA Playoffs Bracket</title>
+<title>NBA Playoffs Bracket - Editable</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -306,7 +306,6 @@
   .pip { width: 8px; height: 8px; border-radius: 50%; background: var(--bg4); border: 1px solid var(--border2); }
   .pip.filled-top { background: #5de088; border-color: #5de088; }
   .pip.filled-bot { background: #e05225; border-color: #e05225; }
-  .pip.filled-single { background: var(--gold); border-color: var(--gold); }
 
   /* FINALS PAGE */
   .finals-hero {
@@ -410,7 +409,6 @@
   }
   .sel-item:active { background: var(--bg3); }
   .sel-logo { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
-  .sel-logo-ph { width: 36px; height: 36px; border-radius: 50%; background: var(--bg4); border: 1px dashed var(--border2); display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; color: var(--text3); flex-shrink: 0; }
   .sel-name { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 600; color: var(--text); }
   .sel-conf { font-size: 11px; color: var(--text3); margin-top: 1px; }
   .selector-close-btn {
@@ -437,7 +435,7 @@
   <div class="header-logo">NBA</div>
   <div>
     <div class="header-title">Playoff Bracket</div>
-    <div class="header-sub">Mejor de 7</div>
+    <div class="header-sub">Predicciones NBA</div>
   </div>
 </div>
 
@@ -498,7 +496,6 @@ const TEAMS = [
   {id:'UTA',name:'Utah Jazz',short:'Jazz',conf:'West'},
 ];
 
-// Map team name -> logo filename (no extension)
 const LOGO_MAP = {
   'ATL':'ATLANTAHAWKS','BOS':'BOSTONCELTICS','BKN':'BROOKLYNNETS','CHA':'CHARLOTTEHORNETS',
   'CHI':'CHICAGOBULLS','CLE':'CLEVELANDCAVALIERS','DET':'DETROITPISTONS','IND':'INDIANAPACERS',
@@ -509,14 +506,8 @@ const LOGO_MAP = {
   'NOP':'NEWORLEANSPELICANS','OKC':'OKLAHOMACITYTHUNDER','PHX':'PHOENIXSUNS','POR':'PORTLANDTRAILBLAZERS',
   'SAC':'SACRAMENTOKINGS','SAS':'SANANTONIOSPURS','UTA':'UTAHJAZZ',
 };
-const EXTS = ['png','jpg','jpeg','webp'];
 
-function logoPath(id) {
-  return 'LOGOS/' + LOGO_MAP[id];
-}
-
-
-function makeTeam(conf, seed, id) {
+function makeTeam(seed, id) {
   const t = TEAMS.find(x => x.id === id);
   return { id, name: t.name, short: t.short, conf: t.conf, seed };
 }
@@ -525,20 +516,20 @@ function defaultState() {
   return {
     east: {
       r1: [
-        {t:[makeTeam('East',1,'BOS'),makeTeam('East',8,'MIA')],w:[0,0]},
-        {t:[makeTeam('East',2,'NYK'),makeTeam('East',7,'PHI')],w:[0,0]},
-        {t:[makeTeam('East',3,'MIL'),makeTeam('East',6,'IND')],w:[0,0]},
-        {t:[makeTeam('East',4,'CLE'),makeTeam('East',5,'ORL')],w:[0,0]},
+        {t:[makeTeam(1,'BOS'),makeTeam(8,'MIA')],w:[0,0]},
+        {t:[makeTeam(2,'NYK'),makeTeam(7,'PHI')],w:[0,0]},
+        {t:[makeTeam(3,'MIL'),makeTeam(6,'IND')],w:[0,0]},
+        {t:[makeTeam(4,'CLE'),makeTeam(5,'ORL')],w:[0,0]},
       ],
       r2:[{t:[null,null],w:[0,0]},{t:[null,null],w:[0,0]}],
       r3:[{t:[null,null],w:[0,0]}],
     },
     west: {
       r1:[
-        {t:[makeTeam('West',1,'OKC'),makeTeam('West',8,'NOP')],w:[0,0]},
-        {t:[makeTeam('West',2,'DEN'),makeTeam('West',7,'LAC')],w:[0,0]},
-        {t:[makeTeam('West',3,'MIN'),makeTeam('West',6,'MEM')],w:[0,0]},
-        {t:[makeTeam('West',4,'DAL'),makeTeam('West',5,'PHX')],w:[0,0]},
+        {t:[makeTeam(1,'OKC'),makeTeam(8,'NOP')],w:[0,0]},
+        {t:[makeTeam(2,'DEN'),makeTeam(7,'LAL')],w:[0,0]},
+        {t:[makeTeam(3,'MIN'),makeTeam(6,'PHX')],w:[0,0]},
+        {t:[makeTeam(4,'LAC'),makeTeam(5,'DAL')],w:[0,0]},
       ],
       r2:[{t:[null,null],w:[0,0]},{t:[null,null],w:[0,0]}],
       r3:[{t:[null,null],w:[0,0]}],
@@ -560,43 +551,49 @@ function getWinner(match) {
 function propagate() {
   ['east','west'].forEach(conf=>{
     const c = S[conf];
+    // R1 -> R2
     [0,1].forEach(p=>{
       const s0=c.r1[p*2], s1=c.r1[p*2+1];
       const w0=getWinner(s0), w1=getWinner(s1);
       const dst=c.r2[p];
       const prev0=dst.t[0]?dst.t[0].id:null;
       const prev1=dst.t[1]?dst.t[1].id:null;
+      
       dst.t[0]=w0!==null?{...s0.t[w0]}:null;
       dst.t[1]=w1!==null?{...s1.t[w1]}:null;
-      if(dst.t[0]&&prev0!==dst.t[0].id) dst.w[0]=0;
-      if(dst.t[1]&&prev1!==dst.t[1].id) dst.w[1]=0;
+      
+      if(dst.t[0] && prev0!==dst.t[0].id) dst.w[0]=0;
+      if(dst.t[1] && prev1!==dst.t[1].id) dst.w[1]=0;
     });
+    // R2 -> R3
     const sr0=c.r2[0],sr1=c.r2[1];
     const wr0=getWinner(sr0),wr1=getWinner(sr1);
     const d3=c.r3[0];
     const pp0=d3.t[0]?d3.t[0].id:null, pp1=d3.t[1]?d3.t[1].id:null;
+    
     d3.t[0]=wr0!==null?{...sr0.t[wr0]}:null;
     d3.t[1]=wr1!==null?{...sr1.t[wr1]}:null;
-    if(d3.t[0]&&pp0!==d3.t[0].id) d3.w[0]=0;
-    if(d3.t[1]&&pp1!==d3.t[1].id) d3.w[1]=0;
+    
+    if(d3.t[0] && pp0!==d3.t[0].id) d3.w[0]=0;
+    if(d3.t[1] && pp1!==d3.t[1].id) d3.w[1]=0;
   });
+
+  // R3 -> Finals
   const ew=getWinner(S.east.r3[0]), ww=getWinner(S.west.r3[0]);
   const prev0=S.finals.t[0]?S.finals.t[0].id:null;
   const prev1=S.finals.t[1]?S.finals.t[1].id:null;
+  
   S.finals.t[0]=ew!==null?{...S.east.r3[0].t[ew]}:null;
   S.finals.t[1]=ww!==null?{...S.west.r3[0].t[ww]}:null;
-  if(S.finals.t[0]&&prev0!==S.finals.t[0].id) S.finals.w[0]=0;
-  if(S.finals.t[1]&&prev1!==S.finals.t[1].id) S.finals.w[1]=0;
+  
+  if(S.finals.t[0] && prev0!==S.finals.t[0].id) S.finals.w[0]=0;
+  if(S.finals.t[1] && prev1!==S.finals.t[1].id) S.finals.w[1]=0;
 }
 
-// ─── DOM KEY helpers ────────────────────────────────────────────────
-// Each matchup card gets a stable data-key so we can patch it in place
-// instead of rebuilding innerHTML, which would cause img flicker.
+// ─── DOM HELPERS ──────────────────────────────────────────────────
 
 function matchKey(path) { return 'match-' + path.replace(/:/g,'-'); }
 function rowKey(path,ti) { return matchKey(path)+'-r'+ti; }
-
-// ─── INITIAL HTML builders (called once per page mount) ──────────────
 
 function pipsHtml(w0,w1) {
   let h='<div class="pip-wrap">';
@@ -620,51 +617,59 @@ function logoWrapHtml(id, size) {
   </div>`;
 }
 
-function buildRowHtml(team, ti, path, canEdit, wins, isWin, hasTeams) {
+function buildRowHtml(team, ti, path, canSelect, wins, isWin, hasTeams) {
   const winCls=isWin?' winner':'';
-  const tapCls=canEdit?' tappable':'';
-  const tapAttr=canEdit?`onclick="openSelector('${path}',${ti})"`:''
+  const tapCls=canSelect?' tappable':'';
+  const tapAttr=canSelect?`onclick="openSelector('${path}',${ti})"`:''
   const logo=team ? logoWrapHtml(team.id,28) :
-    `<div class="team-logo-wrap"><div class="logo-placeholder" style="background:var(--bg4);border:1px dashed var(--border2)">?</div></div>`;
+    `<div class="team-logo-wrap"><div class="logo-placeholder">?</div></div>`;
   const seedHtml=team?`<span class="seed-badge">${team.seed||''}</span>`:
     `<span class="seed-badge" style="opacity:.4">—</span>`;
   const nameHtml=team?`<span class="team-name">${team.short}</span>`:
-    `<span class="team-name empty">${canEdit?'Toca para elegir':'Por definir'}</span>`;
+    `<span class="team-name empty">${canSelect?'Elegir':'Por definir'}</span>`;
+  
   const winsHtml=!hasTeams?'':
     `<div class="wins-control" onclick="event.stopPropagation()">
       <button class="wbtn" onclick="setWins('${path}',${ti},-1)">−</button>
       <span class="wins-num${wins===4?' four':''}">${wins}</span>
       <button class="wbtn" onclick="setWins('${path}',${ti},1)">+</button>
     </div>`;
+
   return `<div class="team-row${winCls}${tapCls}" data-rowkey="${rowKey(path,ti)}" ${tapAttr}>${logo}${seedHtml}${nameHtml}${winsHtml}</div>`;
 }
 
-function buildMatchHtml(match, path, canEdit) {
+function buildMatchHtml(match, path, canSelect) {
   const w=getWinner(match);
   const hasTeams=!!(match.t[0]&&match.t[1]);
-  const r0=buildRowHtml(match.t[0],0,path,canEdit,match.w[0],w===0,hasTeams);
-  const r1=buildRowHtml(match.t[1],1,path,canEdit,match.w[1],w===1,hasTeams);
+  const r0=buildRowHtml(match.t[0],0,path,canSelect,match.w[0],w===0,hasTeams);
+  const r1=buildRowHtml(match.t[1],1,path,canSelect,match.w[1],w===1,hasTeams);
+  
   let bar='';
-  if(w!==null) bar=`<div class="series-bar" data-bar="${path}"><span class="series-result">GANADOR 4-${match.w[1-w]}</span></div>`;
-  else if(hasTeams&&(match.w[0]>0||match.w[1]>0)) bar=`<div class="series-bar" data-bar="${path}">${pipsHtml(match.w[0],match.w[1])}</div>`;
+  if(w!==null) bar=`<div class="series-bar" data-bar="${path}"><span class="series-result">FINAL 4-${match.w[1-w]}</span></div>`;
+  else if(hasTeams && (match.w[0]>0||match.w[1]>0)) bar=`<div class="series-bar" data-bar="${path}">${pipsHtml(match.w[0],match.w[1])}</div>`;
   else bar=`<div class="series-bar" data-bar="${path}" style="display:none"></div>`;
+  
   return `<div class="matchup${w!==null?' has-winner':''}" data-matchkey="${matchKey(path)}">${r0}${r1}${bar}</div>`;
 }
 
 function buildConfHtml(conf) {
   const c=S[conf];
   const color=conf==='east'?'east':'west';
-  const label=conf==='east'?'Conferencia Este':'Conferencia Oeste';
+  const label=conf==='east'?'Este':'Oeste';
   let h=`<div class="conf-header ${color}">
     <div class="conf-dot ${color}"></div>
-    <div class="conf-label ${color}">${label}</div>
+    <div class="conf-label ${color}">Conferencia ${label}</div>
   </div>`;
+  
   h+=`<div class="round-label">Primera Ronda</div>`;
   c.r1.forEach((m,i)=>{ h+=buildMatchHtml(m,`${conf}:r1:${i}`,true); });
+  
   h+=`<div class="round-label">Semifinal de Conferencia</div>`;
   c.r2.forEach((m,i)=>{ h+=buildMatchHtml(m,`${conf}:r2:${i}`,false); });
+  
   h+=`<div class="round-label">Final de Conferencia</div>`;
   h+=buildMatchHtml(c.r3[0],`${conf}:r3:0`,false);
+  
   return h;
 }
 
@@ -672,15 +677,17 @@ function buildFinalsHtml() {
   const m=S.finals;
   const w=getWinner(m);
   const champion=w!==null?m.t[w]:null;
+  
   let h=`<div class="finals-hero">
     <div class="finals-trophy">🏆</div>
     <div class="finals-title">NBA Finals</div>
-    <div class="finals-sub">Mejor de 7 · Campeón NBA</div>
+    <div class="finals-sub">The Finals · NBA Championship</div>
   </div>`;
+  
   h+=`<div id="champion-banner-wrap">`;
   if(champion) {
     h+=`<div class="champion-banner">
-      <div class="champion-label">🏆 Campeón NBA</div>
+      <div class="champion-label">🏆 CAMPEÓN NBA</div>
       <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:8px">
         ${logoWrapHtml(champion.id,54)}
         <div class="champion-name">${champion.name}</div>
@@ -688,36 +695,39 @@ function buildFinalsHtml() {
     </div>`;
   }
   h+=`</div>`;
-  if(!m.t[0]||!m.t[1]) {
-    h+=`<div class="locked-notice"><div class="icon">🔒</div><div>Completá las finales de conferencia para desbloquear las NBA Finals</div></div>`;
+  
+  if(!m.t[0] || !m.t[1]) {
+    h+=`<div class="locked-notice"><div class="icon">🔒</div><div>Completa las Finales de Conferencia para ver el duelo final</div></div>`;
   }
+  
   h+=`<div class="round-label">Gran Final</div>`;
   h+=buildMatchHtml(m,'finals',false);
+  
   return h;
 }
 
-// ─── PATCH (no image touching) ───────────────────────────────────────
+// ─── UPDATES ──────────────────────────────────────────────────────
 
-function patchRow(container, match, ti, path, canEdit, w) {
+function patchRow(container, match, ti, path, canSelect, w) {
   const key=rowKey(path,ti);
   const el=container.querySelector(`[data-rowkey="${key}"]`);
   if(!el) return;
+  
   const team=match.t[ti];
   const isWin=w===ti;
   const hasTeams=!!(match.t[0]&&match.t[1]);
   const wins=match.w[ti];
 
-  // Classes
-  el.className='team-row'+(isWin?' winner':'')+(canEdit?' tappable':'');
+  el.className='team-row'+(isWin?' winner':'')+(canSelect?' tappable':'');
 
-  // Logo: only swap src if team changed
+  // Logo
   const wrap=el.querySelector('.team-logo-wrap');
   if(wrap) {
     const prevId=wrap.dataset.logoid||'';
     const newId=team?team.id:'';
     if(prevId!==newId) {
       wrap.outerHTML=team?logoWrapHtml(team.id,28):
-        `<div class="team-logo-wrap"><div class="logo-placeholder" style="background:var(--bg4);border:1px dashed var(--border2)">?</div></div>`;
+        `<div class="team-logo-wrap"><div class="logo-placeholder">?</div></div>`;
     }
   }
 
@@ -728,16 +738,29 @@ function patchRow(container, match, ti, path, canEdit, w) {
   // Name
   const nameEl=el.querySelector('.team-name');
   if(nameEl) {
-    nameEl.textContent=team?team.short:(canEdit?'Toca para elegir':'Por definir');
+    nameEl.textContent=team?team.short:(canSelect?'Elegir':'Por definir');
     nameEl.className='team-name'+(team?'':' empty');
   }
 
-  // Wins control
-  const ctrl=el.querySelector('.wins-control');
-  if(ctrl) {
-    ctrl.style.display=hasTeams?'':'none';
-    const numEl=ctrl.querySelector('.wins-num');
-    if(numEl) { numEl.textContent=wins; numEl.className='wins-num'+(wins===4?' four':''); }
+  // Wins
+  let ctrl=el.querySelector('.wins-control');
+  if(hasTeams) {
+      if(!ctrl) {
+          // Si no existe pero ahora hay equipos, forzar re-render de la fila (caso raro)
+          // Pero para estabilidad, simplemente inyectamos el HTML de control
+          el.innerHTML += `<div class="wins-control" onclick="event.stopPropagation()">
+            <button class="wbtn" onclick="setWins('${path}',${ti},-1)">−</button>
+            <span class="wins-num">0</span>
+            <button class="wbtn" onclick="setWins('${path}',${ti},1)">+</button>
+          </div>`;
+          ctrl = el.querySelector('.wins-control');
+      }
+      ctrl.style.display='';
+      const numEl=ctrl.querySelector('.wins-num');
+      numEl.textContent=wins; 
+      numEl.className='wins-num'+(wins===4?' four': '');
+  } else if (ctrl) {
+      ctrl.style.display='none';
   }
 }
 
@@ -746,10 +769,11 @@ function patchBar(container, match, path) {
   if(!bar) return;
   const w=getWinner(match);
   const hasTeams=!!(match.t[0]&&match.t[1]);
+  
   if(w!==null) {
     bar.style.display='';
-    bar.innerHTML=`<span class="series-result">GANADOR 4-${match.w[1-w]}</span>`;
-  } else if(hasTeams&&(match.w[0]>0||match.w[1]>0)) {
+    bar.innerHTML=`<span class="series-result">FINAL 4-${match.w[1-w]}</span>`;
+  } else if(hasTeams && (match.w[0]>0||match.w[1]>0)) {
     bar.style.display='';
     bar.innerHTML=pipsHtml(match.w[0],match.w[1]);
   } else {
@@ -759,43 +783,70 @@ function patchBar(container, match, path) {
   if(matchEl) matchEl.classList.toggle('has-winner',w!==null);
 }
 
-function patchMatch(container, match, path, canEdit) {
+function patchMatch(container, match, path, canSelect) {
   const w=getWinner(match);
-  patchRow(container,match,0,path,canEdit,w);
-  patchRow(container,match,1,path,canEdit,w);
+  patchRow(container,match,0,path,canSelect,w);
+  patchRow(container,match,1,path,canSelect,w);
   patchBar(container,match,path);
 }
 
-function patchConf(conf) {
-  const c=S[conf];
-  const container=document.getElementById('page-'+conf);
-  c.r1.forEach((m,i)=>patchMatch(container,m,`${conf}:r1:${i}`,true));
-  c.r2.forEach((m,i)=>patchMatch(container,m,`${conf}:r2:${i}`,false));
-  patchMatch(container,c.r3[0],`${conf}:r3:0`,false);
-}
-
-function patchFinals() {
-  const container=document.getElementById('page-finals');
-  patchMatch(container,S.finals,'finals',false);
-  // champion banner (small section, no logos that were previously loaded)
-  const m=S.finals;
-  const w=getWinner(m);
-  const champion=w!==null?m.t[w]:null;
-  const banner=document.getElementById('champion-banner-wrap');
-  if(banner) {
-    if(champion) {
-      banner.innerHTML=`<div class="champion-banner">
-        <div class="champion-label">🏆 Campeón NBA</div>
-        <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:8px">
-          ${logoWrapHtml(champion.id,54)}
-          <div class="champion-name">${champion.name}</div>
-        </div>
-      </div>`;
-    } else { banner.innerHTML=''; }
+function renderAll() {
+  ['east','west'].forEach(conf => {
+      if(!pagesBuilt[conf]) return;
+      const container=document.getElementById('page-'+conf);
+      const c=S[conf];
+      c.r1.forEach((m,i)=>patchMatch(container,m,`${conf}:r1:${i}`,true));
+      c.r2.forEach((m,i)=>patchMatch(container,m,`${conf}:r2:${i}`,false));
+      patchMatch(container,c.r3[0],`${conf}:r3:0`,false);
+  });
+  
+  if(pagesBuilt.finals) {
+      const container=document.getElementById('page-finals');
+      patchMatch(container,S.finals,'finals',false);
+      
+      const w=getWinner(S.finals);
+      const champion=w!==null?S.finals.t[w]:null;
+      const banner=document.getElementById('champion-banner-wrap');
+      if(banner) {
+          if(champion) {
+              banner.innerHTML=`<div class="champion-banner">
+                <div class="champion-label">🏆 CAMPEÓN NBA</div>
+                <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:8px">
+                  ${logoWrapHtml(champion.id,54)}
+                  <div class="champion-name">${champion.name}</div>
+                </div>
+              </div>`;
+          } else {
+              banner.innerHTML='';
+          }
+      }
+      
+      // Mostrar/Ocultar aviso de bloqueo
+      const notice = container.querySelector('.locked-notice');
+      if(notice) {
+          notice.style.display = (S.finals.t[0] && S.finals.t[1]) ? 'none' : 'block';
+      }
   }
 }
 
-// ─── INITIAL RENDER & UPDATES ─────────────────────────────────────────
+function setWins(path, ti, delta) {
+  let match;
+  if(path==='finals') match=S.finals;
+  else {
+    const [conf,round,mi]=path.split(':');
+    match=S[conf][round][+mi];
+  }
+  if(!match.t[ti]) return;
+  
+  let v=match.w[ti]+delta;
+  match.w[ti]=Math.max(0,Math.min(4,v));
+  
+  // Si alguien llega a 4, el otro no puede tener 4
+  if(match.w[ti] === 4) match.w[1-ti] = Math.min(match.w[1-ti], 3);
+  
+  propagate();
+  renderAll();
+}
 
 let pagesBuilt={east:false,west:false,finals:false};
 
@@ -803,26 +854,9 @@ function ensurePageBuilt(p) {
   if(!pagesBuilt[p]) {
     if(p==='east') document.getElementById('page-east').innerHTML=buildConfHtml('east');
     else if(p==='west') document.getElementById('page-west').innerHTML=buildConfHtml('west');
-    else document.getElementById('page-finals').innerHTML=buildFinalsHtml();
+    else if(p==='finals') document.getElementById('page-finals').innerHTML=buildFinalsHtml();
     pagesBuilt[p]=true;
   }
-}
-
-function renderAll() {
-  // Patch pages already built; others will be built fresh on first visit
-  if(pagesBuilt.east) patchConf('east');
-  if(pagesBuilt.west) patchConf('west');
-  if(pagesBuilt.finals) patchFinals();
-}
-
-function setWins(path, ti, delta) {
-  let match;
-  if(path==='finals') match=S.finals;
-  else { const [conf,round,mi]=path.split(':'); match=S[conf][round][+mi]; }
-  let v=match.w[ti]+delta;
-  match.w[ti]=Math.max(0,Math.min(4,v));
-  propagate();
-  renderAll();
 }
 
 function showPage(p) {
@@ -834,17 +868,18 @@ function showPage(p) {
   });
   S.activePage=p;
   ensurePageBuilt(p);
+  renderAll();
 }
 
-// Selector
+// Selector (solo para R1)
 function openSelector(path, ti) {
   selCtx={path,ti};
   const [conf]=path.split(':');
-  const isEast=conf==='east';
-  const isWest=conf==='west';
-  const teams=TEAMS.filter(t=>(!isEast&&!isWest)||t.conf===(isEast?'East':'West'));
+  const teams=TEAMS.filter(t=>t.conf===(conf==='east'?'East':'West'));
+  
   document.getElementById('sel-title').textContent='Elegir equipo';
-  document.getElementById('sel-sub').textContent=isEast?'Conferencia Este':isWest?'Conferencia Oeste':'Todas las conferencias';
+  document.getElementById('sel-sub').textContent=conf==='east'?'Conferencia Este':'Conferencia Oeste';
+  
   let h='';
   teams.forEach(t=>{
     h+=`<div class="sel-item" onclick="selectTeam('${t.id}')">
@@ -869,41 +904,33 @@ function selectTeam(id) {
   if(!selCtx) return;
   const t=TEAMS.find(x=>x.id===id);
   const {path,ti}=selCtx;
-  let match;
-  const seedMap={0:{0:1,1:8},1:{0:2,1:7},2:{0:3,1:6},3:{0:4,1:5}};
-  if(path==='finals') {
-    match=S.finals;
-    match.t[ti]={...t,seed:''};
-  } else {
-    const [conf,round,mi]=path.split(':');
-    match=S[conf][round][+mi];
-    const seed=(round==='r1'&&seedMap[+mi])?seedMap[+mi][ti]:'';
-    match.t[ti]={...t,seed};
-  }
+  const [conf,round,mi]=path.split(':');
+  
+  const match=S[conf][round][+mi];
+  match.t[ti]={...t, seed: match.t[ti]?.seed || ''};
   match.w[ti]=0;
+  
   propagate();
   closeOverlay();
   renderAll();
 }
 
-// Logo extension fallback
 window.tryNextExt=function(img,base,idx){
+  const exts=['png','jpg','jpeg','webp','svg'];
   const next=idx+1;
-  if(next<4){
+  if(next < exts.length){
     img.onerror=function(){tryNextExt(img,base,next);};
-    img.src=base+'.'+['jpg','jpeg','webp','svg'][next];
+    img.src=base+'.'+exts[next];
   } else {
     img.style.display='none';
     const ph=document.createElement('div');
     ph.className='logo-placeholder';
-    ph.style.cssText=`width:${img.width}px;height:${img.height}px;font-size:${Math.round(img.width*0.28)}px;background:var(--bg4);border:1px dashed var(--border2)`;
     ph.textContent=base.split('/').pop().substring(0,3);
     img.parentNode.replaceChild(ph,img);
   }
 };
 
 propagate();
-// Build the first visible page immediately, others are lazy
 ensurePageBuilt('east');
 </script>
 </body>
