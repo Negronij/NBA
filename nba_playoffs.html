@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>NBA Playoffs Bracket</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --bg2: #111318;
+    --bg3: #181c24;
+    --bg4: #1e2330;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --gold: #c9a84c;
+    --gold2: #e8c96a;
+    --text: #f0f2f5;
+    --text2: #8a92a6;
+    --text3: #535c70;
+    --east: #1a6bb5;
+    --east2: #2589e0;
+    --west: #b5411a;
+    --west2: #e05225;
+    --win: #1a7a3c;
+    --win2: #22a050;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Barlow', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .header-logo {
+    width: 36px;
+    height: 36px;
+    background: var(--gold);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    color: #000;
+    letter-spacing: -0.5px;
+    flex-shrink: 0;
+  }
+  .header-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.5px;
+    color: var(--text);
+    line-height: 1;
+  }
+  .header-sub {
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 1;
+    min-width: 90px;
+    padding: 12px 8px;
+    text-align: center;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .tab.active-east { color: var(--east2); border-bottom-color: var(--east2); background: rgba(37,137,224,0.06); }
+  .tab.active-west { color: var(--west2); border-bottom-color: var(--west2); background: rgba(224,82,37,0.06); }
+  .tab.active-finals { color: var(--gold); border-bottom-color: var(--gold); background: rgba(201,168,76,0.06); }
+
+  /* PAGES */
+  .page { display: none; padding: 16px; }
+  .page.active { display: block; }
+
+  /* CONF HEADER */
+  .conf-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-family: 'Barlow Condensed', sans-serif;
+  }
+  .conf-header.east { background: linear-gradient(135deg, rgba(26,107,181,0.25), rgba(26,107,181,0.05)); border: 1px solid rgba(37,137,224,0.2); }
+  .conf-header.west { background: linear-gradient(135deg, rgba(181,65,26,0.25), rgba(181,65,26,0.05)); border: 1px solid rgba(224,82,37,0.2); }
+  .conf-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .conf-dot.east { background: var(--east2); }
+  .conf-dot.west { background: var(--west2); }
+  .conf-label { font-weight: 700; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; }
+  .conf-label.east { color: var(--east2); }
+  .conf-label.west { color: var(--west2); }
+
+  /* ROUND LABEL */
+  .round-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin: 20px 0 10px;
+    padding-left: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .round-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* MATCHUP CARD */
+  .matchup {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 10px;
+    transition: border-color 0.2s;
+  }
+  .matchup.has-winner { border-color: var(--border2); }
+
+  .team-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    gap: 10px;
+    position: relative;
+    transition: background 0.15s;
+    min-height: 52px;
+  }
+  .team-row:first-child { border-bottom: 1px solid var(--border); }
+  .team-row.tappable { cursor: pointer; }
+  .team-row.tappable:active { background: var(--bg3); }
+
+  .team-row.winner {
+    background: rgba(26,122,60,0.15);
+  }
+  .team-row.winner .team-name { color: #5de088; font-weight: 600; }
+  .team-row.winner .seed-badge { background: var(--win); color: #9effc0; }
+
+  .team-logo-wrap {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .team-logo {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+  }
+  .logo-placeholder {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--bg4);
+    border: 1px dashed var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text3);
+    letter-spacing: 0.5px;
+  }
+
+  .seed-badge {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--bg4);
+    color: var(--text3);
+    border-radius: 4px;
+    padding: 2px 5px;
+    min-width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .team-name {
+    flex: 1;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .team-name.empty { color: var(--text3); font-weight: 400; font-size: 14px; }
+
+  .wins-control {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .wbtn {
+    width: 30px;
+    height: 30px;
+    background: transparent;
+    border: none;
+    color: var(--text2);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Barlow', sans-serif;
+    transition: background 0.1s, color 0.1s;
+    line-height: 1;
+    padding-bottom: 1px;
+  }
+  .wbtn:active { background: var(--bg4); color: var(--text); }
+  .wins-num {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 22px;
+    text-align: center;
+  }
+  .wins-num.four { color: #5de088; }
+
+  /* SERIES STATUS BAR */
+  .series-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 12px;
+    gap: 6px;
+    background: var(--bg3);
+    font-size: 11px;
+    color: var(--text3);
+    font-family: 'Barlow Condensed', sans-serif;
+    letter-spacing: 0.5px;
+  }
+  .series-result {
+    font-size: 12px;
+    font-weight: 700;
+    color: #5de088;
+    background: rgba(26,122,60,0.25);
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  .pip-wrap { display: flex; gap: 3px; }
+  .pip { width: 8px; height: 8px; border-radius: 50%; background: var(--bg4); border: 1px solid var(--border2); }
+  .pip.filled-top { background: #5de088; border-color: #5de088; }
+  .pip.filled-bot { background: #e05225; border-color: #e05225; }
+  .pip.filled-single { background: var(--gold); border-color: var(--gold); }
+
+  /* FINALS PAGE */
+  .finals-hero {
+    text-align: center;
+    padding: 24px 16px 20px;
+  }
+  .finals-trophy {
+    font-size: 52px;
+    margin-bottom: 8px;
+    line-height: 1;
+    filter: drop-shadow(0 0 20px rgba(201,168,76,0.4));
+  }
+  .finals-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+    line-height: 1;
+  }
+  .finals-sub {
+    font-size: 12px;
+    color: var(--text3);
+    letter-spacing: 1px;
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+  .champion-banner {
+    background: linear-gradient(135deg, rgba(201,168,76,0.2), rgba(201,168,76,0.05));
+    border: 1px solid rgba(201,168,76,0.35);
+    border-radius: var(--radius);
+    padding: 16px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .champion-logo { width: 60px; height: 60px; object-fit: contain; margin: 0 auto 8px; display: block; }
+  .champion-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 4px; }
+  .champion-name { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 800; color: var(--text); }
+
+  .locked-notice {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text3);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .locked-notice .icon { font-size: 32px; margin-bottom: 12px; }
+
+  /* SELECTOR */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .overlay.open { display: flex; }
+  .selector-sheet {
+    background: var(--bg2);
+    border-radius: 18px 18px 0 0;
+    border: 1px solid var(--border2);
+    border-bottom: none;
+    width: 100%;
+    max-width: 500px;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .selector-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--border2);
+    border-radius: 2px;
+    margin: 12px auto 0;
+    flex-shrink: 0;
+  }
+  .selector-header {
+    padding: 12px 16px 10px;
+    flex-shrink: 0;
+  }
+  .selector-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.5px;
+  }
+  .selector-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  .selector-divider { height: 1px; background: var(--border); flex-shrink: 0; }
+  .selector-list { overflow-y: auto; flex: 1; padding: 8px 0; }
+  .sel-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .sel-item:active { background: var(--bg3); }
+  .sel-logo { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
+  .sel-logo-ph { width: 36px; height: 36px; border-radius: 50%; background: var(--bg4); border: 1px dashed var(--border2); display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; color: var(--text3); flex-shrink: 0; }
+  .sel-name { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 600; color: var(--text); }
+  .sel-conf { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .selector-close-btn {
+    margin: 12px 16px;
+    padding: 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text2);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+  .selector-close-btn:active { background: var(--bg4); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">NBA</div>
+  <div>
+    <div class="header-title">Playoff Bracket</div>
+    <div class="header-sub">Mejor de 7</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active-east" id="tab-east" onclick="showPage('east')">🏀 Este</div>
+  <div class="tab" id="tab-west" onclick="showPage('west')">🏀 Oeste</div>
+  <div class="tab" id="tab-finals" onclick="showPage('finals')">🏆 Finals</div>
+</div>
+
+<div class="page active" id="page-east"></div>
+<div class="page" id="page-west"></div>
+<div class="page" id="page-finals"></div>
+
+<div class="overlay" id="overlay" onclick="overlayClick(event)">
+  <div class="selector-sheet" id="selector-sheet">
+    <div class="selector-handle"></div>
+    <div class="selector-header">
+      <div class="selector-title" id="sel-title">Elegir equipo</div>
+      <div class="selector-sub" id="sel-sub"></div>
+    </div>
+    <div class="selector-divider"></div>
+    <div class="selector-list" id="sel-list"></div>
+    <div class="selector-close-btn" onclick="closeOverlay()">Cancelar</div>
+  </div>
+</div>
+
+<script>
+const TEAMS = [
+  {id:'ATL',name:'Atlanta Hawks',short:'Hawks',conf:'East'},
+  {id:'BOS',name:'Boston Celtics',short:'Celtics',conf:'East'},
+  {id:'BKN',name:'Brooklyn Nets',short:'Nets',conf:'East'},
+  {id:'CHA',name:'Charlotte Hornets',short:'Hornets',conf:'East'},
+  {id:'CHI',name:'Chicago Bulls',short:'Bulls',conf:'East'},
+  {id:'CLE',name:'Cleveland Cavaliers',short:'Cavaliers',conf:'East'},
+  {id:'DET',name:'Detroit Pistons',short:'Pistons',conf:'East'},
+  {id:'IND',name:'Indiana Pacers',short:'Pacers',conf:'East'},
+  {id:'MIA',name:'Miami Heat',short:'Heat',conf:'East'},
+  {id:'MIL',name:'Milwaukee Bucks',short:'Bucks',conf:'East'},
+  {id:'NYK',name:'New York Knicks',short:'Knicks',conf:'East'},
+  {id:'ORL',name:'Orlando Magic',short:'Magic',conf:'East'},
+  {id:'PHI',name:'Philadelphia 76ers',short:'76ers',conf:'East'},
+  {id:'TOR',name:'Toronto Raptors',short:'Raptors',conf:'East'},
+  {id:'WAS',name:'Washington Wizards',short:'Wizards',conf:'East'},
+  {id:'DAL',name:'Dallas Mavericks',short:'Mavericks',conf:'West'},
+  {id:'DEN',name:'Denver Nuggets',short:'Nuggets',conf:'West'},
+  {id:'GSW',name:'Golden State Warriors',short:'Warriors',conf:'West'},
+  {id:'HOU',name:'Houston Rockets',short:'Rockets',conf:'West'},
+  {id:'LAC',name:'LA Clippers',short:'Clippers',conf:'West'},
+  {id:'LAL',name:'Los Angeles Lakers',short:'Lakers',conf:'West'},
+  {id:'MEM',name:'Memphis Grizzlies',short:'Grizzlies',conf:'West'},
+  {id:'MIN',name:'Minnesota Timberwolves',short:'Timberwolves',conf:'West'},
+  {id:'NOP',name:'New Orleans Pelicans',short:'Pelicans',conf:'West'},
+  {id:'OKC',name:'Oklahoma City Thunder',short:'Thunder',conf:'West'},
+  {id:'PHX',name:'Phoenix Suns',short:'Suns',conf:'West'},
+  {id:'POR',name:'Portland Trail Blazers',short:'Trail Blazers',conf:'West'},
+  {id:'SAC',name:'Sacramento Kings',short:'Kings',conf:'West'},
+  {id:'SAS',name:'San Antonio Spurs',short:'Spurs',conf:'West'},
+  {id:'UTA',name:'Utah Jazz',short:'Jazz',conf:'West'},
+];
+
+// Map team name -> logo filename (no extension)
+const LOGO_MAP = {
+  'ATL':'ATLANTAHAWKS','BOS':'BOSTONCELTICS','BKN':'BROOKLYNNETS','CHA':'CHARLOTTEHORNETS',
+  'CHI':'CHICAGOBULLS','CLE':'CLEVELANDCAVALIERS','DET':'DETROITPISTONS','IND':'INDIANAPACERS',
+  'MIA':'MIAMIHEAT','MIL':'MILWAUKEEBUCKS','NYK':'NEWYORKKNICKS','ORL':'ORLANDOMAGIC',
+  'PHI':'PHILADELPHIA76ERS','TOR':'TORONTORAPTORS','WAS':'WASHINGTONWIZARDS',
+  'DAL':'DALLASMAVERICKS','DEN':'DENVERNUGGETS','GSW':'GOLDENSTATEWARRIORS','HOU':'HOUSTONROCKETS',
+  'LAC':'LACLIPPERS','LAL':'LOSANGELESLAKERS','MEM':'MEMPHISGRIZZLIES','MIN':'MINNESOTATIMBERWOLVES',
+  'NOP':'NEWORLEANSPELICANS','OKC':'OKLAHOMACITYTHUNDER','PHX':'PHOENIXSUNS','POR':'PORTLANDTRAILBLAZERS',
+  'SAC':'SACRAMENTOKINGS','SAS':'SANANTONIOSPURS','UTA':'UTAHJAZZ',
+};
+const EXTS = ['png','jpg','jpeg','webp'];
+
+function logoPath(id) {
+  return 'LOGOS/' + LOGO_MAP[id];
+}
+
+function logoImg(id, size) {
+  size = size || 34;
+  const base = logoPath(id);
+  // Try extensions via onerror chain
+  return `<img class="team-logo" src="${base}.png" width="${size}" height="${size}"
+    onerror="tryNextExt(this,'${base}',0)"
+    style="width:${size}px;height:${size}px;object-fit:contain">`;
+}
+
+function makePH(id, size) {
+  return `<div class="logo-placeholder" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.28)}px">${id}</div>`;
+}
+
+function makeTeam(conf, seed, id) {
+  const t = TEAMS.find(x => x.id === id);
+  return { id, name: t.name, short: t.short, conf: t.conf, seed };
+}
+
+function defaultState() {
+  return {
+    east: {
+      r1: [
+        {t:[makeTeam('East',1,'BOS'),makeTeam('East',8,'MIA')],w:[0,0]},
+        {t:[makeTeam('East',2,'NYK'),makeTeam('East',7,'PHI')],w:[0,0]},
+        {t:[makeTeam('East',3,'MIL'),makeTeam('East',6,'IND')],w:[0,0]},
+        {t:[makeTeam('East',4,'CLE'),makeTeam('East',5,'ORL')],w:[0,0]},
+      ],
+      r2:[{t:[null,null],w:[0,0]},{t:[null,null],w:[0,0]}],
+      r3:[{t:[null,null],w:[0,0]}],
+    },
+    west: {
+      r1:[
+        {t:[makeTeam('West',1,'OKC'),makeTeam('West',8,'NOP')],w:[0,0]},
+        {t:[makeTeam('West',2,'DEN'),makeTeam('West',7,'LAC')],w:[0,0]},
+        {t:[makeTeam('West',3,'MIN'),makeTeam('West',6,'MEM')],w:[0,0]},
+        {t:[makeTeam('West',4,'DAL'),makeTeam('West',5,'PHX')],w:[0,0]},
+      ],
+      r2:[{t:[null,null],w:[0,0]},{t:[null,null],w:[0,0]}],
+      r3:[{t:[null,null],w:[0,0]}],
+    },
+    finals:{t:[null,null],w:[0,0]},
+    activePage:'east',
+  };
+}
+
+let S = defaultState();
+let selCtx = null;
+
+function getWinner(match) {
+  if(match.w[0]===4) return 0;
+  if(match.w[1]===4) return 1;
+  return null;
+}
+
+function propagate() {
+  ['east','west'].forEach(conf=>{
+    const c = S[conf];
+    [0,1].forEach(p=>{
+      const s0=c.r1[p*2], s1=c.r1[p*2+1];
+      const w0=getWinner(s0), w1=getWinner(s1);
+      const dst=c.r2[p];
+      const prev0=dst.t[0]?dst.t[0].id:null;
+      const prev1=dst.t[1]?dst.t[1].id:null;
+      dst.t[0]=w0!==null?{...s0.t[w0]}:null;
+      dst.t[1]=w1!==null?{...s1.t[w1]}:null;
+      if(dst.t[0]&&prev0!==dst.t[0].id) dst.w[0]=0;
+      if(dst.t[1]&&prev1!==dst.t[1].id) dst.w[1]=0;
+    });
+    const sr0=c.r2[0],sr1=c.r2[1];
+    const wr0=getWinner(sr0),wr1=getWinner(sr1);
+    const d3=c.r3[0];
+    const pp0=d3.t[0]?d3.t[0].id:null, pp1=d3.t[1]?d3.t[1].id:null;
+    d3.t[0]=wr0!==null?{...sr0.t[wr0]}:null;
+    d3.t[1]=wr1!==null?{...sr1.t[wr1]}:null;
+    if(d3.t[0]&&pp0!==d3.t[0].id) d3.w[0]=0;
+    if(d3.t[1]&&pp1!==d3.t[1].id) d3.w[1]=0;
+  });
+  const ew=getWinner(S.east.r3[0]), ww=getWinner(S.west.r3[0]);
+  const prev0=S.finals.t[0]?S.finals.t[0].id:null;
+  const prev1=S.finals.t[1]?S.finals.t[1].id:null;
+  S.finals.t[0]=ew!==null?{...S.east.r3[0].t[ew]}:null;
+  S.finals.t[1]=ww!==null?{...S.west.r3[0].t[ww]}:null;
+  if(S.finals.t[0]&&prev0!==S.finals.t[0].id) S.finals.w[0]=0;
+  if(S.finals.t[1]&&prev1!==S.finals.t[1].id) S.finals.w[1]=0;
+}
+
+function setWins(path, ti, delta) {
+  let match;
+  if(path==='finals') match=S.finals;
+  else { const [conf,round,mi]=path.split(':'); match=S[conf][round][+mi]; }
+  let v=match.w[ti]+delta;
+  match.w[ti]=Math.max(0,Math.min(4,v));
+  propagate();
+  renderAll();
+}
+
+// Rendering helpers
+function pips(w0,w1) {
+  let h='<div class="pip-wrap">';
+  for(let i=0;i<4;i++) h+=`<div class="pip${i<w0?' filled-top':''}"></div>`;
+  h+='</div>';
+  h+=`<span style="font-size:11px;color:var(--text3);font-family:'Barlow Condensed',sans-serif">${w0}-${w1}</span>`;
+  h+='<div class="pip-wrap">';
+  for(let i=0;i<4;i++) h+=`<div class="pip${i<w1?' filled-bot':''}"></div>`;
+  h+='</div>';
+  return h;
+}
+
+function renderMatch(match, path, canEdit) {
+  const w=getWinner(match);
+  const hasTeams=match.t[0]&&match.t[1];
+  const ctrlDisabled=!hasTeams;
+
+  function row(ti) {
+    const team=match.t[ti];
+    const isWin=w===ti;
+    const winCls=isWin?' winner':'';
+    const tapCls=canEdit?' tappable':'';
+    const tapAttr=canEdit?`onclick="openSelector('${path}',${ti})"`:''
+    const logo=team?`<div class="team-logo-wrap">${logoImg(team.id,36)}</div>`:
+      `<div class="team-logo-wrap"><div class="logo-placeholder">?</div></div>`;
+    const seedHtml=team?`<span class="seed-badge">${team.seed||''}</span>`:
+      `<span class="seed-badge" style="opacity:.4">—</span>`;
+    const nameHtml=team?`<span class="team-name">${team.short}</span>`:
+      `<span class="team-name empty">${canEdit?'Toca para elegir':'Por definir'}</span>`;
+    const winsHtml=ctrlDisabled?'':
+      `<div class="wins-control" onclick="event.stopPropagation()">
+        <button class="wbtn" onclick="setWins('${path}',${ti},-1)">−</button>
+        <span class="wins-num${match.w[ti]===4?' four':''}">${match.w[ti]}</span>
+        <button class="wbtn" onclick="setWins('${path}',${ti},1)">+</button>
+      </div>`;
+    return `<div class="team-row${winCls}${tapCls}" ${tapAttr}>${logo}${seedHtml}${nameHtml}${winsHtml}</div>`;
+  }
+
+  let bar='';
+  if(w!==null) {
+    bar=`<div class="series-bar"><span class="series-result">GANADOR 4-${match.w[1-w]}</span></div>`;
+  } else if(hasTeams && (match.w[0]>0||match.w[1]>0)) {
+    bar=`<div class="series-bar">${pips(match.w[0],match.w[1])}</div>`;
+  }
+
+  return `<div class="matchup${w!==null?' has-winner':''}">${row(0)}${row(1)}${bar}</div>`;
+}
+
+function renderConf(conf) {
+  const c=S[conf];
+  const color=conf==='east'?'east':'west';
+  const label=conf==='east'?'Conferencia Este':'Conferencia Oeste';
+  let h=`<div class="conf-header ${color}">
+    <div class="conf-dot ${color}"></div>
+    <div class="conf-label ${color}">${label}</div>
+  </div>`;
+
+  h+=`<div class="round-label">Primera Ronda</div>`;
+  c.r1.forEach((m,i)=>{ h+=renderMatch(m,`${conf}:r1:${i}`,true); });
+
+  h+=`<div class="round-label">Semifinal de Conferencia</div>`;
+  c.r2.forEach((m,i)=>{ h+=renderMatch(m,`${conf}:r2:${i}`,false); });
+
+  h+=`<div class="round-label">Final de Conferencia</div>`;
+  h+=renderMatch(c.r3[0],`${conf}:r3:0`,false);
+
+  return h;
+}
+
+function renderFinals() {
+  const m=S.finals;
+  const w=getWinner(m);
+  const champion=w!==null?m.t[w]:null;
+
+  let h=`<div class="finals-hero">
+    <div class="finals-trophy">🏆</div>
+    <div class="finals-title">NBA Finals</div>
+    <div class="finals-sub">Mejor de 7 · Campeón NBA</div>
+  </div>`;
+
+  if(champion) {
+    h+=`<div class="champion-banner">
+      <div class="champion-label">🏆 Campeón NBA</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:8px">
+        <div style="width:60px;height:60px;display:flex;align-items:center;justify-content:center">${logoImg(champion.id,58)}</div>
+        <div class="champion-name">${champion.name}</div>
+      </div>
+    </div>`;
+  }
+
+  if(!m.t[0]||!m.t[1]) {
+    h+=`<div class="locked-notice">
+      <div class="icon">🔒</div>
+      <div>Completá las finales de conferencia para desbloquear las NBA Finals</div>
+    </div>`;
+  }
+
+  h+=`<div class="round-label">Gran Final</div>`;
+  h+=renderMatch(m,'finals',false);
+
+  return h;
+}
+
+function renderAll() {
+  document.getElementById('page-east').innerHTML=renderConf('east');
+  document.getElementById('page-west').innerHTML=renderConf('west');
+  document.getElementById('page-finals').innerHTML=renderFinals();
+}
+
+function showPage(p) {
+  ['east','west','finals'].forEach(id=>{
+    document.getElementById('page-'+id).classList.toggle('active',id===p);
+    const tab=document.getElementById('tab-'+id);
+    tab.className='tab';
+    if(id===p) tab.classList.add('active-'+id);
+  });
+  S.activePage=p;
+}
+
+// Selector
+function openSelector(path, ti) {
+  selCtx={path,ti};
+  const [conf]=path.split(':');
+  const isEast=conf==='east';
+  const isWest=conf==='west';
+  const teams=TEAMS.filter(t=>(!isEast&&!isWest)||t.conf===(isEast?'East':'West'));
+  document.getElementById('sel-title').textContent='Elegir equipo';
+  document.getElementById('sel-sub').textContent=isEast?'Conferencia Este':isWest?'Conferencia Oeste':'Todas las conferencias';
+  let h='';
+  teams.forEach(t=>{
+    h+=`<div class="sel-item" onclick="selectTeam('${t.id}')">
+      <div style="width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+        ${logoImg(t.id,36)}
+      </div>
+      <div><div class="sel-name">${t.name}</div><div class="sel-conf">${t.conf}</div></div>
+    </div>`;
+  });
+  document.getElementById('sel-list').innerHTML=h;
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeOverlay() {
+  document.getElementById('overlay').classList.remove('open');
+  selCtx=null;
+}
+
+function overlayClick(e) {
+  if(e.target===document.getElementById('overlay')) closeOverlay();
+}
+
+function selectTeam(id) {
+  if(!selCtx) return;
+  const t=TEAMS.find(x=>x.id===id);
+  const {path,ti}=selCtx;
+  let match;
+  const seedMap={0:{0:1,1:8},1:{0:2,1:7},2:{0:3,1:6},3:{0:4,1:5}};
+  if(path==='finals') {
+    match=S.finals;
+    match.t[ti]={...t,seed:''};
+  } else {
+    const [conf,round,mi]=path.split(':');
+    match=S[conf][round][+mi];
+    const seed=(round==='r1'&&seedMap[+mi])?seedMap[+mi][ti]:'';
+    match.t[ti]={...t,seed};
+  }
+  match.w[ti]=0;
+  propagate();
+  closeOverlay();
+  renderAll();
+}
+
+// Logo extension fallback
+window.tryNextExt=function(img,base,idx){
+  const next=idx+1;
+  if(next<4){
+    img.onerror=function(){tryNextExt(img,base,next);};
+    img.src=base+'.'+['jpg','jpeg','webp','svg'][next];
+  } else {
+    img.style.display='none';
+    const ph=document.createElement('div');
+    ph.className='logo-placeholder';
+    ph.style.cssText=`width:${img.width}px;height:${img.height}px;font-size:${Math.round(img.width*0.28)}px`;
+    ph.textContent=base.split('/').pop().substring(0,3);
+    img.parentNode.replaceChild(ph,img);
+  }
+};
+
+propagate();
+renderAll();
+</script>
+</body>
+</html>
