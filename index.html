@@ -196,9 +196,9 @@
     border: 1.5px solid rgba(255,255,255,0.18);
   }
   .team-logo {
-    width: 30px;
-    height: 30px;
-    object-fit: contain;
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
     display: block;
   }
   .logo-placeholder {
@@ -612,9 +612,10 @@ function pipsHtml(w0,w1) {
 function logoWrapHtml(id, size) {
   if(!id) return `<div class="logo-placeholder">?</div>`;
   const base='LOGOS/'+LOGO_MAP[id];
-  return `<div class="team-logo-wrap" data-logoid="${id}">
-    <img class="team-logo" src="${base}.png" width="${size}" height="${size}"
-      style="width:${size}px;height:${size}px;object-fit:contain"
+  const imgSize=Math.round(size*1.6);
+  return `<div class="team-logo-wrap" data-logoid="${id}" style="width:${size}px;height:${size}px">
+    <img class="team-logo" src="${base}.png" width="${imgSize}" height="${imgSize}"
+      style="width:${imgSize}px;height:${imgSize}px;object-fit:cover;display:block"
       onerror="tryNextExt(this,'${base}',0)">
   </div>`;
 }
