@@ -648,8 +648,6 @@ function anyRoundReady(round){
   return false;
 }
 
-/* Mapping: pred mode → which real round it predicts */
-const MODE_ROUND = { r1:'r1', r2:'r2', r3:'r3', rf:'finals' };
 
 /* ═══════════════════ UI STATE ═══════════════════════════════════════════ */
 
@@ -736,6 +734,34 @@ function seriesBar(w0,w1){
   return '';
 }
 
+function lockNotice(msg){
+  return `<div class="lock-notice"><div class="lock-ico">🔒</div><p>${msg}</p></div>`;
+}
+
+/* ═══════════════════ MATCH HTML BUILDERS ════════════════════════════════
+
+  REAL mode: admin picks teams (R1 only), sets wins (all rounds).
+  PRED modes (r1/r2/r3/rf): teams come from REAL, user sets predicted wins.
+
+  Key rule: onclick attributes CANNOT have nested conflicting quotes.
+  All interactive actions use data-* on wrapper + delegated listeners.
+======================================================================= */
+
+// Single delegated listener on bracket-area, attached once at startup
+function bracketClick(e){
+  const btn = e.target.closest('[data-action]');
+  if(!btn) return;
+  e.stopPropagation();
+  const a = btn.dataset;
+  if(a.action==='pick-team')  openTeamSel(a.conf, a.round, +a.idx, +a.slot);
+  if(a.action==='pick-seed')  openSeedEdit(a.conf, a.round, +a.idx, +a.slot);
+  if(a.action==='wins-minus') adjWins(a.src, a.conf, a.round, +a.idx, +a.slot, -1);
+  if(a.action==='wins-plus')  adjWins(a.src, a.conf, a.round, +a.idx, +a.slot, +1);
+}
+function attachBracketEvents(){
+  // No-op: listener is attached once at init
+}
+
 /* ── build conf page ── */
 function buildConfPage(conf){
   const isReal=(MODE==='real');
@@ -743,16 +769,18 @@ function buildConfPage(conf){
   const confLabel=conf==='east'?'Conferencia Este':'Conferencia Oeste';
   let h='';
 
-  // banner
-  const bMap={r1:['bn-r1','Tu predicción — Primera Ronda'],r2:['bn-r2','Tu predicción — 2ª Ronda (equipos reales)'],
-    r3:['bn-r3','Tu predicción — Finales de Conferencia'],rf:['bn-rf','Tu predicción — NBA Finals'],
-    real:['bn-real','⚠ Resultados Reales — solo Admin']};
-  if(bMap[MODE]) h+=banner(bMap[MODE][0],bMap[MODE][1]);
-
+  const bMap={
+    r1:  ['bn-r1',  'Tu predicción — elegí ganadores de cada serie'],
+    r2:  ['bn-r2',  'Tu predicción desde R2 — equipos que pasaron realmente'],
+    r3:  ['bn-r3',  'Tu predicción — Finales de Conferencia'],
+    rf:  ['bn-rf',  'Tu predicción — NBA Finals únicamente'],
+    real:['bn-real','⚠ Admin — Cargá equipos y resultados reales'],
+  };
+  if(bMap[MODE]) h+=banner(bMap[MODE][0], bMap[MODE][1]);
   h+=`<div class="ch ${color}"><div class="ch-dot"></div>${confLabel}</div>`;
 
   if(isReal){
-    // Admin sees and edits everything
+    // Admin: full bracket, can pick teams in R1, set wins in all rounds
     h+=`<div class="rl">Primera Ronda</div>`;
     for(let i=0;i<4;i++) h+=realMatchHtml(conf,'r1',i);
     h+=`<div class="rl">Semifinal de Conferencia</div>`;
@@ -760,132 +788,150 @@ function buildConfPage(conf){
     h+=`<div class="rl">Final de Conferencia</div>`;
     h+=realMatchHtml(conf,'r3',0);
 
-  } else {
-    const mround=MODE_ROUND[MODE];
-    // pred r1 covers r1+r2+r3
-    // pred r2 covers r2+r3
-    // pred r3 covers r3
-    if(MODE==='r1'){
-      h+=`<div class="rl">Primera Ronda</div>`;
-      const r1ready=realRoundReady(conf,'r1');
-      if(!r1ready){
-        h+=lockNotice('El Admin aún no definió los equipos de 1ª Ronda');
-      } else {
-        for(let i=0;i<4;i++) h+=predMatchHtml(conf,'r1',i);
-      }
-      h+=`<div class="rl">Semifinal de Conferencia</div>`;
-      const r2ready=realRoundReady(conf,'r2');
-      if(!r2ready){
-        h+=lockNotice('Disponible cuando avancen equipos a 2ª Ronda');
-      } else {
-        for(let i=0;i<2;i++) h+=predMatchHtml(conf,'r2',i);
-      }
-      h+=`<div class="rl">Final de Conferencia</div>`;
-      const r3ready=realRoundReady(conf,'r3');
-      if(!r3ready){
-        h+=lockNotice('Disponible cuando avancen equipos a Finales de Conf.');
-      } else {
-        h+=predMatchHtml(conf,'r3',0);
-      }
-    } else if(MODE==='r2'){
-      h+=`<div class="rl">Semifinal de Conferencia</div>`;
-      const r2ready=realRoundReady(conf,'r2');
-      if(!r2ready){
-        h+=lockNotice('El Admin aún no confirmó los equipos de 2ª Ronda');
-      } else {
-        for(let i=0;i<2;i++) h+=predMatchHtml(conf,'r2',i,'r2');
-      }
-      h+=`<div class="rl">Final de Conferencia</div>`;
-      const r3ready=realRoundReady(conf,'r3');
-      if(!r3ready){
-        h+=lockNotice('Disponible cuando avancen equipos a Finales de Conf.');
-      } else {
-        h+=predMatchHtml(conf,'r3',0,'r2');
-      }
-    } else if(MODE==='r3'){
-      h+=`<div class="rl">Final de Conferencia</div>`;
-      const r3ready=realRoundReady(conf,'r3');
-      if(!r3ready){
-        h+=lockNotice('El Admin aún no confirmó los equipos de Finals de Conf.');
-      } else {
-        h+=predMatchHtml(conf,'r3',0,'r3');
-      }
+  } else if(MODE==='r1'){
+    // Pred R1: predict R1 + R2 + R3 (teams from REAL, must be loaded)
+    h+=`<div class="rl">Primera Ronda</div>`;
+    if(!realRoundReady(conf,'r1')){
+      h+=lockNotice('El Admin aún no cargó los equipos de 1ª Ronda');
+    } else {
+      for(let i=0;i<4;i++) h+=predMatchHtml('r1',conf,'r1',i);
+    }
+    h+=`<div class="rl">Semifinal de Conferencia</div>`;
+    if(!realRoundReady(conf,'r2')){
+      h+=lockNotice('Se habilita cuando el Admin confirme los equipos de 2ª Ronda');
+    } else {
+      for(let i=0;i<2;i++) h+=predMatchHtml('r1',conf,'r2',i);
+    }
+    h+=`<div class="rl">Final de Conferencia</div>`;
+    if(!realRoundReady(conf,'r3')){
+      h+=lockNotice('Se habilita cuando el Admin confirme los equipos de Finales de Conf.');
+    } else {
+      h+=predMatchHtml('r1',conf,'r3',0);
+    }
+
+  } else if(MODE==='r2'){
+    // Pred R2: predict R2 + R3
+    h+=`<div class="rl">Semifinal de Conferencia</div>`;
+    if(!realRoundReady(conf,'r2')){
+      h+=lockNotice('El Admin aún no confirmó los equipos de 2ª Ronda');
+    } else {
+      for(let i=0;i<2;i++) h+=predMatchHtml('r2',conf,'r2',i);
+    }
+    h+=`<div class="rl">Final de Conferencia</div>`;
+    if(!realRoundReady(conf,'r3')){
+      h+=lockNotice('Se habilita cuando el Admin confirme los equipos de Finales de Conf.');
+    } else {
+      h+=predMatchHtml('r2',conf,'r3',0);
+    }
+
+  } else if(MODE==='r3'){
+    // Pred R3: predict R3 only
+    h+=`<div class="rl">Final de Conferencia</div>`;
+    if(!realRoundReady(conf,'r3')){
+      h+=lockNotice('El Admin aún no confirmó los equipos de Finals de Conferencia');
+    } else {
+      h+=predMatchHtml('r3',conf,'r3',0);
     }
   }
   return h;
 }
 
-function lockNotice(msg){
-  return `<div class="lock-notice"><div class="lock-ico">🔒</div><p>${msg}</p></div>`;
-}
-
-/* Real match (admin edits) */
-function realMatchHtml(conf,round,idx){
+/* ── Real match card (admin only) ── */
+function realMatchHtml(conf, round, idx){
   const m = REAL[conf][round][idx];
   if(!m) return '';
-  const w=winner(m), hasBoth=!!(m.t[0]&&m.t[1]);
-  const isR1=(round==='r1');
+  const w = winner(m);
+  const hasBoth = !!(m.t[0] && m.t[1]);
+  const isR1 = (round==='r1');
 
-  const row=(ti)=>{
-    const team=m.t[ti], wins=m.w[ti], isWin=w===ti;
-    // Admin can tap to pick team only in r1
-    const canPick = window.IS_ADMIN && isR1;
-    const tapAttr = canPick?`onclick="openTeamSel('${conf}','${round}',${idx},${ti})"`:'' ;
-    const seedEl = team
-      ? `<span class="seed${canPick?' clickable':''}" ${canPick?`onclick="event.stopPropagation();openSeedEdit('${conf}','${round}',${idx},${ti})"`:''} >${team.seed||'?'}</span>`
-      : `<span class="seed" style="opacity:.35">—</span>`;
-    const nameEl = team
-      ? `<span class="tname">${team.short}</span>${canPick?'<span class="tap-hint">TAP</span>':''}`
-      : `<span class="tname empty">${canPick?'Elegir equipo':'Por definir'}</span>`;
-    const wctrl = (hasBoth&&window.IS_ADMIN)
-      ? `<div class="wc" onclick="event.stopPropagation()">
-           <button class="wb" onclick="adjWins('real','${conf}','${round}',${idx},${ti},-1)">−</button>
-           <span class="wn${wins===4?' four':''}">${wins}</span>
-           <button class="wb" onclick="adjWins('real','${conf}','${round}',${idx},${ti},1)">+</button>
-         </div>` : '';
-    return `<div class="team-row${isWin?' winner':''}${canPick?' tap':''}" ${tapAttr}>${logoHtml(team?.id,34)}${seedEl}${nameEl}${wctrl}</div>`;
-  };
+  const rows = [0,1].map(ti=>{
+    const team = m.t[ti];
+    const wins = m.w[ti];
+    const isWin = (w===ti);
+    const canPick = isR1 && !!window.IS_ADMIN;
 
-  return `<div class="matchup${w!==null?' done':''}">
-    ${row(0)}${row(1)}${seriesBar(m.w[0],m.w[1])}
-  </div>`;
+    // logo
+    const logo = logoHtml(team?.id, 34);
+
+    // seed badge — tappable only in R1 for admin
+    let seedEl;
+    if(canPick && team){
+      seedEl=`<span class="seed clickable" data-action="pick-seed" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}">${team.seed||'?'}</span>`;
+    } else {
+      seedEl=team?`<span class="seed">${team.seed||'?'}</span>`:`<span class="seed" style="opacity:.3">—</span>`;
+    }
+
+    // name
+    let nameEl;
+    if(canPick){
+      nameEl=`<span class="tname${team?'':' empty'}">${team?team.short:'Elegir equipo'}</span><span class="tap-hint">TAP</span>`;
+    } else {
+      nameEl=team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
+    }
+
+    // wins control — admin sees in all rounds when both teams set
+    let wctrl='';
+    if(hasBoth && window.IS_ADMIN){
+      wctrl=`<div class="wc">
+        <button class="wb" data-action="wins-minus" data-src="real" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}">−</button>
+        <span class="wn${wins===4?' four':''}">${wins}</span>
+        <button class="wb" data-action="wins-plus" data-src="real" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}">+</button>
+      </div>`;
+    }
+
+    // row — tappable to pick team (R1 admin)
+    const rowData = canPick ? `data-action="pick-team" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}"` : '';
+    return `<div class="team-row${isWin?' winner':''}${canPick?' tap':''}" ${rowData}>${logo}${seedEl}${nameEl}${wctrl}</div>`;
+  }).join('');
+
+  return `<div class="matchup${w!==null?' done':''}">${rows}${seriesBar(m.w[0],m.w[1])}</div>`;
 }
 
-/* Pred match — teams always from REAL, wins from PREDS[predKey] */
-function predMatchHtml(conf,round,idx,predKey){
-  predKey = predKey || MODE; // default to current mode
+/* ── Pred match card ── */
+// predKey: 'r1'|'r2'|'r3'|'rf'
+// Teams always from REAL[conf][round][idx], wins from PREDS[predKey][conf][round][idx]
+function predMatchHtml(predKey, conf, round, idx){
   const realM = REAL[conf][round][idx];
   if(!realM) return '';
-  const t0=realM.t[0], t1=realM.t[1], hasBoth=!!(t0&&t1);
-  const pd = PREDS[predKey];
-  const mdata = pd[conf][round][idx];
-  const pw = mdata ? mdata.w : [0,0];
-  const pw0=pw[0], pw1=pw[1];
-  const pwin = pw0===4?0:pw1===4?1:null;
+  const t0=realM.t[0], t1=realM.t[1];
+  const hasBoth = !!(t0&&t1);
+  // Get pred wins
+  const mdata = PREDS[predKey]?.[conf]?.[round]?.[idx];
+  const pw = (mdata&&mdata.w) ? mdata.w : [0,0];
+  const pwin = pw[0]===4?0:pw[1]===4?1:null;
 
-  const row=(ti)=>{
-    const team=ti===0?t0:t1, wins=pw[ti], isWin=pwin===ti;
-    const wctrl = hasBoth
-      ? `<div class="wc" onclick="event.stopPropagation()">
-           <button class="wb" onclick="adjWins('${predKey}','${conf}','${round}',${idx},${ti},-1)">−</button>
-           <span class="wn${wins===4?' four':''}">${wins}</span>
-           <button class="wb" onclick="adjWins('${predKey}','${conf}','${round}',${idx},${ti},1)">+</button>
-         </div>` : '';
-    const seed=team?`<span class="seed">${team.seed||''}</span>`:`<span class="seed" style="opacity:.35">—</span>`;
-    const name=team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
-    return `<div class="team-row${isWin?' winner':''}">${logoHtml(team?.id,34)}${seed}${name}${wctrl}</div>`;
-  };
+  const rows = [0,1].map(ti=>{
+    const team = ti===0?t0:t1;
+    const wins = pw[ti];
+    const isWin = (pwin===ti);
+    const logo = logoHtml(team?.id,34);
+    const seedEl = team?`<span class="seed">${team.seed||''}</span>`:`<span class="seed" style="opacity:.3">—</span>`;
+    const nameEl = team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
+    let wctrl='';
+    if(hasBoth){
+      wctrl=`<div class="wc">
+        <button class="wb" data-action="wins-minus" data-src="${predKey}" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}">−</button>
+        <span class="wn${wins===4?' four':''}">${wins}</span>
+        <button class="wb" data-action="wins-plus" data-src="${predKey}" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}">+</button>
+      </div>`;
+    }
+    return `<div class="team-row${isWin?' winner':''}">${logo}${seedEl}${nameEl}${wctrl}</div>`;
+  }).join('');
 
-  return `<div class="matchup${pwin!==null?' done':''}">${row(0)}${row(1)}${seriesBar(pw0,pw1)}</div>`;
+  return `<div class="matchup${pwin!==null?' done':''}">${rows}${seriesBar(pw[0],pw[1])}</div>`;
 }
 
 /* ── Finals page ── */
 function buildFinalsPage(){
   const isReal=(MODE==='real');
   let h='';
-  const bMap={r1:['bn-r1','Tu predicción desde R1'],r2:['bn-r2','Tu predicción desde R2'],
-    r3:['bn-r3','Tu predicción desde R3'],rf:['bn-rf','Tu predicción — NBA Finals'],
-    real:['bn-real','⚠ Resultados Reales — solo Admin']};
+  const bMap={
+    r1:  ['bn-r1', 'Tu predicción Finals (desde R1)'],
+    r2:  ['bn-r2', 'Tu predicción Finals (desde R2)'],
+    r3:  ['bn-r3', 'Tu predicción Finals (desde R3)'],
+    rf:  ['bn-rf', 'Tu predicción — NBA Finals únicamente'],
+    real:['bn-real','⚠ Admin — Resultados reales de la Gran Final'],
+  };
   if(bMap[MODE]) h+=banner(bMap[MODE][0],bMap[MODE][1]);
 
   h+=`<div class="finals-hero">
@@ -894,88 +940,112 @@ function buildFinalsPage(){
     <div class="finals-sub">The Championship · 2025</div>
   </div>`;
 
-  // champion box
+  // Champion banner
   let champTeam=null;
-  if(isReal){ const w=winner(REAL.finals); if(w!==null) champTeam=REAL.finals.t[w]; }
-  else {
-    const pk=MODE; const pd=PREDS[pk];
-    const pw=pd.finals?.w||[0,0]; const w=pw[0]===4?0:pw[1]===4?1:null;
+  if(isReal){
+    const w=winner(REAL.finals);
+    if(w!==null) champTeam=REAL.finals.t[w];
+  } else {
+    const pw=PREDS[MODE]?.finals?.w||[0,0];
+    const w=pw[0]===4?0:pw[1]===4?1:null;
     if(w!==null) champTeam=REAL.finals.t[w];
   }
-  if(champTeam) h+=`<div class="champ-box"><div class="champ-lbl">🏆 Campeón NBA</div>
-    <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:6px">
-      ${logoHtml(champTeam.id,50)}
-      <div class="champ-name">${champTeam.name}</div>
-    </div></div>`;
+  if(champTeam){
+    h+=`<div class="champ-box"><div class="champ-lbl">🏆 Campeón NBA</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:6px">
+        ${logoHtml(champTeam.id,50)}<div class="champ-name">${champTeam.name}</div>
+      </div></div>`;
+  }
 
   h+=`<div class="rl">Gran Final</div>`;
+
   if(isReal){
+    // Admin: sets wins, teams auto-propagated from R3 winners
     h+=finalRealHtml();
   } else {
-    const ready=realRoundReady('east','finals')||realRoundReady('west','finals')||!!(REAL.finals.t[0]||REAL.finals.t[1]);
-    if(!ready) h+=lockNotice('Disponible cuando ambos finalistas estén definidos');
-    else h+=finalPredHtml(MODE);
+    const finalsReady=!!(REAL.finals.t[0]||REAL.finals.t[1]);
+    if(!finalsReady){
+      h+=lockNotice('Se habilita cuando el Admin confirme los finalistas');
+    } else {
+      h+=finalPredHtml(MODE);
+    }
   }
   return h;
 }
 
 function finalRealHtml(){
-  const m=REAL.finals, w=winner(m), hasBoth=!!(m.t[0]&&m.t[1]);
-  const row=(ti)=>{
-    const team=m.t[ti], wins=m.w[ti], isWin=w===ti;
-    const seed=team?`<span class="seed">${team.seed||''}</span>`:`<span class="seed" style="opacity:.35">—</span>`;
-    const name=team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
-    const wctrl=(hasBoth&&window.IS_ADMIN)?`<div class="wc" onclick="event.stopPropagation()">
-      <button class="wb" onclick="adjWins('real','finals','finals',0,${ti},-1)">−</button>
-      <span class="wn${wins===4?' four':''}">${wins}</span>
-      <button class="wb" onclick="adjWins('real','finals','finals',0,${ti},1)">+</button>
-    </div>`:'';
-    return `<div class="team-row${isWin?' winner':''}">${logoHtml(team?.id,34)}${seed}${name}${wctrl}</div>`;
-  };
-  return `<div class="matchup${w!==null?' done':''}">${row(0)}${row(1)}${seriesBar(m.w[0],m.w[1])}</div>`;
+  const m=REAL.finals;
+  const w=winner(m);
+  const hasBoth=!!(m.t[0]&&m.t[1]);
+
+  const rows=[0,1].map(ti=>{
+    const team=m.t[ti], wins=m.w[ti], isWin=(w===ti);
+    const logo=logoHtml(team?.id,34);
+    const seedEl=team?`<span class="seed">${team.seed||''}</span>`:`<span class="seed" style="opacity:.3">—</span>`;
+    const nameEl=team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
+    let wctrl='';
+    if(hasBoth&&window.IS_ADMIN){
+      wctrl=`<div class="wc">
+        <button class="wb" data-action="wins-minus" data-src="real" data-conf="finals" data-round="finals" data-idx="0" data-slot="${ti}">−</button>
+        <span class="wn${wins===4?' four':''}">${wins}</span>
+        <button class="wb" data-action="wins-plus" data-src="real" data-conf="finals" data-round="finals" data-idx="0" data-slot="${ti}">+</button>
+      </div>`;
+    }
+    return `<div class="team-row${isWin?' winner':''}">${logo}${seedEl}${nameEl}${wctrl}</div>`;
+  }).join('');
+
+  return `<div class="matchup${w!==null?' done':''}">${rows}${seriesBar(m.w[0],m.w[1])}</div>`;
 }
 
-function finalPredHtml(pk){
+function finalPredHtml(predKey){
   const m=REAL.finals;
-  const t0=m.t[0],t1=m.t[1],hasBoth=!!(t0&&t1);
-  const pd=PREDS[pk]; const pw=pd.finals?.w||[0,0];
+  const t0=m.t[0], t1=m.t[1], hasBoth=!!(t0&&t1);
+  const pw=PREDS[predKey]?.finals?.w||[0,0];
   const pwin=pw[0]===4?0:pw[1]===4?1:null;
-  const row=(ti)=>{
-    const team=ti===0?t0:t1, wins=pw[ti], isWin=pwin===ti;
-    const seed=team?`<span class="seed">${team.seed||''}</span>`:`<span class="seed" style="opacity:.35">—</span>`;
-    const name=team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
-    const wctrl=hasBoth?`<div class="wc" onclick="event.stopPropagation()">
-      <button class="wb" onclick="adjWins('${pk}','finals','finals',0,${ti},-1)">−</button>
-      <span class="wn${wins===4?' four':''}">${wins}</span>
-      <button class="wb" onclick="adjWins('${pk}','finals','finals',0,${ti},1)">+</button>
-    </div>`:'';
-    return `<div class="team-row${isWin?' winner':''}">${logoHtml(team?.id,34)}${seed}${name}${wctrl}</div>`;
-  };
-  return `<div class="matchup${pwin!==null?' done':''}">${row(0)}${row(1)}${seriesBar(pw[0],pw[1])}</div>`;
+
+  const rows=[0,1].map(ti=>{
+    const team=ti===0?t0:t1, wins=pw[ti], isWin=(pwin===ti);
+    const logo=logoHtml(team?.id,34);
+    const seedEl=team?`<span class="seed">${team.seed||''}</span>`:`<span class="seed" style="opacity:.3">—</span>`;
+    const nameEl=team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
+    let wctrl='';
+    if(hasBoth){
+      wctrl=`<div class="wc">
+        <button class="wb" data-action="wins-minus" data-src="${predKey}" data-conf="finals" data-round="finals" data-idx="0" data-slot="${ti}">−</button>
+        <span class="wn${wins===4?' four':''}">${wins}</span>
+        <button class="wb" data-action="wins-plus" data-src="${predKey}" data-conf="finals" data-round="finals" data-idx="0" data-slot="${ti}">+</button>
+      </div>`;
+    }
+    return `<div class="team-row${isWin?' winner':''}">${logo}${seedEl}${nameEl}${wctrl}</div>`;
+  }).join('');
+
+  return `<div class="matchup${pwin!==null?' done':''}">${rows}${seriesBar(pw[0],pw[1])}</div>`;
 }
 
 /* ═══════════════════ WINS ADJUSTMENT ═══════════════════════════════════ */
 
 function adjWins(source, conf, round, idx, slot, delta){
-  slot=+slot; delta=+delta;
+  slot=+slot; delta=+delta; idx=+idx;
 
   if(source==='real'){
-    let m;
-    if(conf==='finals') m=REAL.finals;
-    else m=REAL[conf][round][idx];
+    let m = (conf==='finals') ? REAL.finals : REAL[conf][round][idx];
     if(!m) return;
-    m.w[slot] = Math.max(0,Math.min(4,m.w[slot]+delta));
-    if(m.w[slot]===4) m.w[1-slot]=Math.min(m.w[1-slot],3);
+    m.w[slot] = Math.max(0, Math.min(4, m.w[slot]+delta));
+    if(m.w[slot]===4) m.w[1-slot] = Math.min(m.w[1-slot], 3);
     propagateReal();
   } else {
-    // source is predKey
+    // source is a predKey: 'r1','r2','r3','rf'
     let mdata;
-    if(conf==='finals') mdata=PREDS[source].finals;
-    else mdata=PREDS[source][conf][round][idx];
-    if(!mdata) return;
+    if(conf==='finals'){
+      if(!PREDS[source].finals) PREDS[source].finals={w:[0,0]};
+      mdata = PREDS[source].finals;
+    } else {
+      mdata = PREDS[source]?.[conf]?.[round]?.[idx];
+    }
+    if(!mdata){ console.warn('adjWins: no mdata',source,conf,round,idx); return; }
     if(!mdata.w) mdata.w=[0,0];
-    mdata.w[slot] = Math.max(0,Math.min(4,mdata.w[slot]+delta));
-    if(mdata.w[slot]===4) mdata.w[1-slot]=Math.min(mdata.w[1-slot],3);
+    mdata.w[slot] = Math.max(0, Math.min(4, mdata.w[slot]+delta));
+    if(mdata.w[slot]===4) mdata.w[1-slot] = Math.min(mdata.w[1-slot], 3);
   }
   renderAll();
   scheduleSave();
@@ -1187,6 +1257,9 @@ function renderScore(){
 function deepClone(x){ return JSON.parse(JSON.stringify(x)); }
 
 /* ═══════════════════ INIT ═══════════════════════════════════════════════ */
+
+// Attach single delegated listener for bracket interactions
+document.getElementById('bracket-area').addEventListener('click', bracketClick);
 
 // Start in r1 mode, east conf
 setTimeout(()=>{
