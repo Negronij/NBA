@@ -184,21 +184,26 @@
   .team-row.winner .seed-badge { background: var(--win); color: #9effc0; }
 
   .team-logo-wrap {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: #fff;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 1.5px solid rgba(255,255,255,0.18);
   }
   .team-logo {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     object-fit: contain;
+    display: block;
   }
   .logo-placeholder {
-    width: 34px;
-    height: 34px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     background: var(--bg4);
     border: 1px dashed var(--border2);
@@ -510,18 +515,6 @@ function logoPath(id) {
   return 'LOGOS/' + LOGO_MAP[id];
 }
 
-function logoImg(id, size) {
-  size = size || 34;
-  const base = logoPath(id);
-  // Try extensions via onerror chain
-  return `<img class="team-logo" src="${base}.png" width="${size}" height="${size}"
-    onerror="tryNextExt(this,'${base}',0)"
-    style="width:${size}px;height:${size}px;object-fit:contain">`;
-}
-
-function makePH(id, size) {
-  return `<div class="logo-placeholder" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.28)}px">${id}</div>`;
-}
 
 function makeTeam(conf, seed, id) {
   const t = TEAMS.find(x => x.id === id);
@@ -596,18 +589,16 @@ function propagate() {
   if(S.finals.t[1]&&prev1!==S.finals.t[1].id) S.finals.w[1]=0;
 }
 
-function setWins(path, ti, delta) {
-  let match;
-  if(path==='finals') match=S.finals;
-  else { const [conf,round,mi]=path.split(':'); match=S[conf][round][+mi]; }
-  let v=match.w[ti]+delta;
-  match.w[ti]=Math.max(0,Math.min(4,v));
-  propagate();
-  renderAll();
-}
+// ─── DOM KEY helpers ────────────────────────────────────────────────
+// Each matchup card gets a stable data-key so we can patch it in place
+// instead of rebuilding innerHTML, which would cause img flicker.
 
-// Rendering helpers
-function pips(w0,w1) {
+function matchKey(path) { return 'match-' + path.replace(/:/g,'-'); }
+function rowKey(path,ti) { return matchKey(path)+'-r'+ti; }
+
+// ─── INITIAL HTML builders (called once per page mount) ──────────────
+
+function pipsHtml(w0,w1) {
   let h='<div class="pip-wrap">';
   for(let i=0;i<4;i++) h+=`<div class="pip${i<w0?' filled-top':''}"></div>`;
   h+='</div>';
@@ -618,43 +609,48 @@ function pips(w0,w1) {
   return h;
 }
 
-function renderMatch(match, path, canEdit) {
-  const w=getWinner(match);
-  const hasTeams=match.t[0]&&match.t[1];
-  const ctrlDisabled=!hasTeams;
-
-  function row(ti) {
-    const team=match.t[ti];
-    const isWin=w===ti;
-    const winCls=isWin?' winner':'';
-    const tapCls=canEdit?' tappable':'';
-    const tapAttr=canEdit?`onclick="openSelector('${path}',${ti})"`:''
-    const logo=team?`<div class="team-logo-wrap">${logoImg(team.id,36)}</div>`:
-      `<div class="team-logo-wrap"><div class="logo-placeholder">?</div></div>`;
-    const seedHtml=team?`<span class="seed-badge">${team.seed||''}</span>`:
-      `<span class="seed-badge" style="opacity:.4">—</span>`;
-    const nameHtml=team?`<span class="team-name">${team.short}</span>`:
-      `<span class="team-name empty">${canEdit?'Toca para elegir':'Por definir'}</span>`;
-    const winsHtml=ctrlDisabled?'':
-      `<div class="wins-control" onclick="event.stopPropagation()">
-        <button class="wbtn" onclick="setWins('${path}',${ti},-1)">−</button>
-        <span class="wins-num${match.w[ti]===4?' four':''}">${match.w[ti]}</span>
-        <button class="wbtn" onclick="setWins('${path}',${ti},1)">+</button>
-      </div>`;
-    return `<div class="team-row${winCls}${tapCls}" ${tapAttr}>${logo}${seedHtml}${nameHtml}${winsHtml}</div>`;
-  }
-
-  let bar='';
-  if(w!==null) {
-    bar=`<div class="series-bar"><span class="series-result">GANADOR 4-${match.w[1-w]}</span></div>`;
-  } else if(hasTeams && (match.w[0]>0||match.w[1]>0)) {
-    bar=`<div class="series-bar">${pips(match.w[0],match.w[1])}</div>`;
-  }
-
-  return `<div class="matchup${w!==null?' has-winner':''}">${row(0)}${row(1)}${bar}</div>`;
+function logoWrapHtml(id, size) {
+  if(!id) return `<div class="logo-placeholder">?</div>`;
+  const base='LOGOS/'+LOGO_MAP[id];
+  return `<div class="team-logo-wrap" data-logoid="${id}">
+    <img class="team-logo" src="${base}.png" width="${size}" height="${size}"
+      style="width:${size}px;height:${size}px;object-fit:contain"
+      onerror="tryNextExt(this,'${base}',0)">
+  </div>`;
 }
 
-function renderConf(conf) {
+function buildRowHtml(team, ti, path, canEdit, wins, isWin, hasTeams) {
+  const winCls=isWin?' winner':'';
+  const tapCls=canEdit?' tappable':'';
+  const tapAttr=canEdit?`onclick="openSelector('${path}',${ti})"`:''
+  const logo=team ? logoWrapHtml(team.id,28) :
+    `<div class="team-logo-wrap"><div class="logo-placeholder" style="background:var(--bg4);border:1px dashed var(--border2)">?</div></div>`;
+  const seedHtml=team?`<span class="seed-badge">${team.seed||''}</span>`:
+    `<span class="seed-badge" style="opacity:.4">—</span>`;
+  const nameHtml=team?`<span class="team-name">${team.short}</span>`:
+    `<span class="team-name empty">${canEdit?'Toca para elegir':'Por definir'}</span>`;
+  const winsHtml=!hasTeams?'':
+    `<div class="wins-control" onclick="event.stopPropagation()">
+      <button class="wbtn" onclick="setWins('${path}',${ti},-1)">−</button>
+      <span class="wins-num${wins===4?' four':''}">${wins}</span>
+      <button class="wbtn" onclick="setWins('${path}',${ti},1)">+</button>
+    </div>`;
+  return `<div class="team-row${winCls}${tapCls}" data-rowkey="${rowKey(path,ti)}" ${tapAttr}>${logo}${seedHtml}${nameHtml}${winsHtml}</div>`;
+}
+
+function buildMatchHtml(match, path, canEdit) {
+  const w=getWinner(match);
+  const hasTeams=!!(match.t[0]&&match.t[1]);
+  const r0=buildRowHtml(match.t[0],0,path,canEdit,match.w[0],w===0,hasTeams);
+  const r1=buildRowHtml(match.t[1],1,path,canEdit,match.w[1],w===1,hasTeams);
+  let bar='';
+  if(w!==null) bar=`<div class="series-bar" data-bar="${path}"><span class="series-result">GANADOR 4-${match.w[1-w]}</span></div>`;
+  else if(hasTeams&&(match.w[0]>0||match.w[1]>0)) bar=`<div class="series-bar" data-bar="${path}">${pipsHtml(match.w[0],match.w[1])}</div>`;
+  else bar=`<div class="series-bar" data-bar="${path}" style="display:none"></div>`;
+  return `<div class="matchup${w!==null?' has-winner':''}" data-matchkey="${matchKey(path)}">${r0}${r1}${bar}</div>`;
+}
+
+function buildConfHtml(conf) {
   const c=S[conf];
   const color=conf==='east'?'east':'west';
   const label=conf==='east'?'Conferencia Este':'Conferencia Oeste';
@@ -662,57 +658,170 @@ function renderConf(conf) {
     <div class="conf-dot ${color}"></div>
     <div class="conf-label ${color}">${label}</div>
   </div>`;
-
   h+=`<div class="round-label">Primera Ronda</div>`;
-  c.r1.forEach((m,i)=>{ h+=renderMatch(m,`${conf}:r1:${i}`,true); });
-
+  c.r1.forEach((m,i)=>{ h+=buildMatchHtml(m,`${conf}:r1:${i}`,true); });
   h+=`<div class="round-label">Semifinal de Conferencia</div>`;
-  c.r2.forEach((m,i)=>{ h+=renderMatch(m,`${conf}:r2:${i}`,false); });
-
+  c.r2.forEach((m,i)=>{ h+=buildMatchHtml(m,`${conf}:r2:${i}`,false); });
   h+=`<div class="round-label">Final de Conferencia</div>`;
-  h+=renderMatch(c.r3[0],`${conf}:r3:0`,false);
-
+  h+=buildMatchHtml(c.r3[0],`${conf}:r3:0`,false);
   return h;
 }
 
-function renderFinals() {
+function buildFinalsHtml() {
   const m=S.finals;
   const w=getWinner(m);
   const champion=w!==null?m.t[w]:null;
-
   let h=`<div class="finals-hero">
     <div class="finals-trophy">🏆</div>
     <div class="finals-title">NBA Finals</div>
     <div class="finals-sub">Mejor de 7 · Campeón NBA</div>
   </div>`;
-
+  h+=`<div id="champion-banner-wrap">`;
   if(champion) {
     h+=`<div class="champion-banner">
       <div class="champion-label">🏆 Campeón NBA</div>
       <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:8px">
-        <div style="width:60px;height:60px;display:flex;align-items:center;justify-content:center">${logoImg(champion.id,58)}</div>
+        ${logoWrapHtml(champion.id,54)}
         <div class="champion-name">${champion.name}</div>
       </div>
     </div>`;
   }
-
+  h+=`</div>`;
   if(!m.t[0]||!m.t[1]) {
-    h+=`<div class="locked-notice">
-      <div class="icon">🔒</div>
-      <div>Completá las finales de conferencia para desbloquear las NBA Finals</div>
-    </div>`;
+    h+=`<div class="locked-notice"><div class="icon">🔒</div><div>Completá las finales de conferencia para desbloquear las NBA Finals</div></div>`;
   }
-
   h+=`<div class="round-label">Gran Final</div>`;
-  h+=renderMatch(m,'finals',false);
-
+  h+=buildMatchHtml(m,'finals',false);
   return h;
 }
 
+// ─── PATCH (no image touching) ───────────────────────────────────────
+
+function patchRow(container, match, ti, path, canEdit, w) {
+  const key=rowKey(path,ti);
+  const el=container.querySelector(`[data-rowkey="${key}"]`);
+  if(!el) return;
+  const team=match.t[ti];
+  const isWin=w===ti;
+  const hasTeams=!!(match.t[0]&&match.t[1]);
+  const wins=match.w[ti];
+
+  // Classes
+  el.className='team-row'+(isWin?' winner':'')+(canEdit?' tappable':'');
+
+  // Logo: only swap src if team changed
+  const wrap=el.querySelector('.team-logo-wrap');
+  if(wrap) {
+    const prevId=wrap.dataset.logoid||'';
+    const newId=team?team.id:'';
+    if(prevId!==newId) {
+      wrap.outerHTML=team?logoWrapHtml(team.id,28):
+        `<div class="team-logo-wrap"><div class="logo-placeholder" style="background:var(--bg4);border:1px dashed var(--border2)">?</div></div>`;
+    }
+  }
+
+  // Seed
+  const seedEl=el.querySelector('.seed-badge');
+  if(seedEl) { seedEl.textContent=team?(team.seed||''):'—'; seedEl.style.opacity=team?'':'0.4'; }
+
+  // Name
+  const nameEl=el.querySelector('.team-name');
+  if(nameEl) {
+    nameEl.textContent=team?team.short:(canEdit?'Toca para elegir':'Por definir');
+    nameEl.className='team-name'+(team?'':' empty');
+  }
+
+  // Wins control
+  const ctrl=el.querySelector('.wins-control');
+  if(ctrl) {
+    ctrl.style.display=hasTeams?'':'none';
+    const numEl=ctrl.querySelector('.wins-num');
+    if(numEl) { numEl.textContent=wins; numEl.className='wins-num'+(wins===4?' four':''); }
+  }
+}
+
+function patchBar(container, match, path) {
+  const bar=container.querySelector(`[data-bar="${path}"]`);
+  if(!bar) return;
+  const w=getWinner(match);
+  const hasTeams=!!(match.t[0]&&match.t[1]);
+  if(w!==null) {
+    bar.style.display='';
+    bar.innerHTML=`<span class="series-result">GANADOR 4-${match.w[1-w]}</span>`;
+  } else if(hasTeams&&(match.w[0]>0||match.w[1]>0)) {
+    bar.style.display='';
+    bar.innerHTML=pipsHtml(match.w[0],match.w[1]);
+  } else {
+    bar.style.display='none';
+  }
+  const matchEl=container.querySelector(`[data-matchkey="${matchKey(path)}"]`);
+  if(matchEl) matchEl.classList.toggle('has-winner',w!==null);
+}
+
+function patchMatch(container, match, path, canEdit) {
+  const w=getWinner(match);
+  patchRow(container,match,0,path,canEdit,w);
+  patchRow(container,match,1,path,canEdit,w);
+  patchBar(container,match,path);
+}
+
+function patchConf(conf) {
+  const c=S[conf];
+  const container=document.getElementById('page-'+conf);
+  c.r1.forEach((m,i)=>patchMatch(container,m,`${conf}:r1:${i}`,true));
+  c.r2.forEach((m,i)=>patchMatch(container,m,`${conf}:r2:${i}`,false));
+  patchMatch(container,c.r3[0],`${conf}:r3:0`,false);
+}
+
+function patchFinals() {
+  const container=document.getElementById('page-finals');
+  patchMatch(container,S.finals,'finals',false);
+  // champion banner (small section, no logos that were previously loaded)
+  const m=S.finals;
+  const w=getWinner(m);
+  const champion=w!==null?m.t[w]:null;
+  const banner=document.getElementById('champion-banner-wrap');
+  if(banner) {
+    if(champion) {
+      banner.innerHTML=`<div class="champion-banner">
+        <div class="champion-label">🏆 Campeón NBA</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:8px">
+          ${logoWrapHtml(champion.id,54)}
+          <div class="champion-name">${champion.name}</div>
+        </div>
+      </div>`;
+    } else { banner.innerHTML=''; }
+  }
+}
+
+// ─── INITIAL RENDER & UPDATES ─────────────────────────────────────────
+
+let pagesBuilt={east:false,west:false,finals:false};
+
+function ensurePageBuilt(p) {
+  if(!pagesBuilt[p]) {
+    if(p==='east') document.getElementById('page-east').innerHTML=buildConfHtml('east');
+    else if(p==='west') document.getElementById('page-west').innerHTML=buildConfHtml('west');
+    else document.getElementById('page-finals').innerHTML=buildFinalsHtml();
+    pagesBuilt[p]=true;
+  }
+}
+
 function renderAll() {
-  document.getElementById('page-east').innerHTML=renderConf('east');
-  document.getElementById('page-west').innerHTML=renderConf('west');
-  document.getElementById('page-finals').innerHTML=renderFinals();
+  // Patch pages already built; others will be built fresh on first visit
+  if(pagesBuilt.east) patchConf('east');
+  if(pagesBuilt.west) patchConf('west');
+  if(pagesBuilt.finals) patchFinals();
+}
+
+function setWins(path, ti, delta) {
+  let match;
+  if(path==='finals') match=S.finals;
+  else { const [conf,round,mi]=path.split(':'); match=S[conf][round][+mi]; }
+  let v=match.w[ti]+delta;
+  match.w[ti]=Math.max(0,Math.min(4,v));
+  propagate();
+  renderAll();
 }
 
 function showPage(p) {
@@ -723,6 +832,7 @@ function showPage(p) {
     if(id===p) tab.classList.add('active-'+id);
   });
   S.activePage=p;
+  ensurePageBuilt(p);
 }
 
 // Selector
@@ -737,9 +847,7 @@ function openSelector(path, ti) {
   let h='';
   teams.forEach(t=>{
     h+=`<div class="sel-item" onclick="selectTeam('${t.id}')">
-      <div style="width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
-        ${logoImg(t.id,36)}
-      </div>
+      ${logoWrapHtml(t.id,28)}
       <div><div class="sel-name">${t.name}</div><div class="sel-conf">${t.conf}</div></div>
     </div>`;
   });
@@ -787,14 +895,15 @@ window.tryNextExt=function(img,base,idx){
     img.style.display='none';
     const ph=document.createElement('div');
     ph.className='logo-placeholder';
-    ph.style.cssText=`width:${img.width}px;height:${img.height}px;font-size:${Math.round(img.width*0.28)}px`;
+    ph.style.cssText=`width:${img.width}px;height:${img.height}px;font-size:${Math.round(img.width*0.28)}px;background:var(--bg4);border:1px dashed var(--border2)`;
     ph.textContent=base.split('/').pop().substring(0,3);
     img.parentNode.replaceChild(ph,img);
   }
 };
 
 propagate();
-renderAll();
+// Build the first visible page immediately, others are lazy
+ensurePageBuilt('east');
 </script>
 </body>
 </html>
