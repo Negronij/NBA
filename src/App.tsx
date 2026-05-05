@@ -392,7 +392,7 @@ export default function App() {
 
   // Bracket rendering logic
   const renderBracket = () => {
-    if (mode === 'pts') return <ScoreView user={user} realBracket={realBracket} userPredictions={userPredictions} />;
+    if (mode === 'pts') return <ScoreView user={user} realBracket={realBracket} userPredictions={userPredictions} onNavigate={(m) => setMode(m)} />;
 
     const currentLayer = mode === 'admin' ? 'r1' : mode;
     const displayBracket = getBracketForMode(mode, realBracket, userPredictions[currentLayer]);
@@ -674,8 +674,31 @@ function Matchup({
   const pw = pm ? (pm.w[0] === 4 ? 0 : pm.w[1] === 4 ? 1 : null) : null;
   const isReady = !!(m.t[0] && m.t[1]);
 
+  // Determine if the user's prediction is correct
+  const isCorrectWinner = w !== null && pw !== null && m.t[w]?.id === m.t[pw]?.id;
+  const isExactResult = isCorrectWinner && m.w[0] === pm?.w[0] && m.w[1] === pm?.w[1];
+
   return (
-    <div className={`bg-[#0f1117] border rounded-xl overflow-hidden shadow-xl transition-all duration-300 ${w !== null ? 'border-white/20' : 'border-white/5'}`}>
+    <div className={`bg-[#0f1117] border rounded-xl overflow-hidden shadow-xl transition-all duration-300 ${w !== null ? 'border-white/20' : 'border-white/5'} relative`}>
+      {/* Scoring Badge */}
+      {!isAdminMode && w !== null && pw !== null && (
+        <div className="absolute top-2 right-2 z-10">
+          {isExactResult ? (
+            <div className="bg-green-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase shadow-lg animate-bounce">
+              ¡Exacto!
+            </div>
+          ) : isCorrectWinner ? (
+            <div className="bg-blue-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase shadow-lg">
+              Ganador
+            </div>
+          ) : (
+            <div className="bg-red-500/50 text-white/50 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+              Fallido
+            </div>
+          )}
+        </div>
+      )}
+
       {[0, 1].map(ti => {
         const team = m.t[ti];
         const wins = isAdminMode ? m.w[ti] : (pm?.w[ti] || 0);
@@ -870,120 +893,150 @@ function FinalsView({
   );
 }
 
-function ScoreView({ user, realBracket, userPredictions }: { user: User, realBracket: Bracket, userPredictions: any }) {
-  const scoreMatch = (pk: string, conf: Conf, round: string, idx: number) => {
+function ScoreView({ user, realBracket, userPredictions, onNavigate }: { user: User | null, realBracket: Bracket, userPredictions: any, onNavigate: (m: Mode) => void }) {
+  const scoreMatch = (layerKey: Mode, conf: 'east' | 'west' | 'finals', round: string, idx: number) => {
     const realM = conf === 'finals' ? realBracket.finals : realBracket[conf][round as keyof Round][idx];
     const realW = winner(realM);
     if (realW === null) return { status: 'pending', pts: 0 };
 
-    const pred = userPredictions[pk] as Prediction;
+    const pred = userPredictions[layerKey];
     if (!pred) return { status: 'none', pts: 0 };
     
-    const pw = conf === 'finals' ? pred.finals.w : pred[conf][round as keyof Round][idx].w;
+    // Pick the correct prediction for the matchup
+    const pm = conf === 'finals' ? pred.finals : pred[conf][round as keyof Round][idx];
+    const pw = pm.w;
     const predW = pw[0] === 4 ? 0 : pw[1] === 4 ? 1 : null;
     if (predW === null) return { status: 'none', pts: 0 };
 
-    const realT = realM.t[realW];
-    const predT = realM.t[predW];
+    // Check if the team picked is actually the team that won in real life
+    // Note: Teams in prediction might differ from real bracket due to propagation
+    const realWinnerTeamId = realM.t[realW]?.id;
+    // In our prediction bracket logic, the teams in 'pm' are what the user PREDICTED would be there
+    // But for scoring, we usually compare if the winner they picked is the REAL winner.
+    // However, if they predicted Team A vs Team B and it was Team C vs Team D, they already lost.
+    const predWinnerTeamId = pm.t[predW]?.id;
 
-    if (realT?.id !== predT?.id) return { status: 'miss', pts: 0 };
+    if (!realWinnerTeamId || !predWinnerTeamId || realWinnerTeamId !== predWinnerTeamId) {
+      return { status: 'miss', pts: 0 };
+    }
 
-    const ptsMap = { r1: [4, 2], r2: [3, 1], r3: [2, 1], rf: [1, 1] } as any;
-    const roundKey = round === 'finals' ? 'finals' : (round === 'r1' ? 'r1' : round === 'r2' ? 'r2' : 'r3');
-    const scoreKey = round === 'finals' ? 'rf' : roundKey;
-    const [exact, win] = ptsMap[scoreKey] || [1, 1];
+    // Points scale
+    const ptsMap: Record<string, [number, number]> = { r1: [2, 3], r2: [4, 6], r3: [8, 12], rf: [16, 24] };
+    const rKey = round === 'finals' ? 'rf' : (round === 'r1' ? 'r1' : round === 'r2' ? 'r2' : 'r3');
+    const [winPts, exactPts] = ptsMap[rKey] || [0, 0];
     
     const realGames = 4 + realM.w[1 - realW];
     const predGames = 4 + pw[1 - predW];
     
-    return realGames === predGames ? { status: 'exact', pts: exact } : { status: 'win', pts: win };
+    return realGames === predGames ? { status: 'exact', pts: exactPts } : { status: 'win', pts: winPts };
   };
 
-  const getCovers = (pk: string) => {
-    if (pk === 'r1') return ['r1', 'r2', 'r3', 'finals'];
-    if (pk === 'r2') return ['r2', 'r3', 'finals'];
-    if (pk === 'r3') return ['r3', 'finals'];
-    return ['finals'];
-  };
+  const calculateLayerScore = (layer: Mode) => {
+    let total = 0;
+    const roundsToScore = [];
+    if (layer === 'r1') roundsToScore.push('r1', 'r2', 'r3', 'finals');
+    if (layer === 'r2') roundsToScore.push('r2', 'r3', 'finals');
+    if (layer === 'r3') roundsToScore.push('r3', 'finals');
+    if (layer === 'rf') roundsToScore.push('finals');
 
-  const getLayersForRound = (round: string) => {
-    if (round === 'r1') return ['r1'];
-    if (round === 'r2') return ['r1', 'r2'];
-    if (round === 'r3') return ['r1', 'r2', 'r3'];
-    return ['r1', 'r2', 'r3', 'rf'];
-  };
-
-  const calculateTotal = () => {
-    let t = 0;
-    ['east', 'west', 'finals'].forEach(c => {
+    (['east', 'west', 'finals'] as const).forEach(c => {
       const rounds = c === 'finals' ? ['finals'] : ['r1', 'r2', 'r3'];
-      rounds.forEach(round => {
-        const count = round === 'r1' ? 4 : round === 'r2' ? 2 : 1;
+      rounds.forEach(r => {
+        if (!roundsToScore.includes(r)) return;
+        const count = r === 'r1' ? 4 : r === 'r2' ? 2 : 1;
         for (let i = 0; i < count; i++) {
-          const layers = getLayersForRound(round);
-          layers.forEach(pk => {
-            t += scoreMatch(pk, c as any, round, i).pts;
-          });
+          total += scoreMatch(layer, c, r, i).pts;
         }
       });
     });
-    return t;
+    return total;
   };
 
-  const total = calculateTotal();
+  const layers: { id: Mode, label: string, color: string }[] = [
+    { id: 'r1', label: 'Desde Round 1', color: 'text-green-400' },
+    { id: 'r2', label: 'Desde Semifinales', color: 'text-blue-400' },
+    { id: 'r3', label: 'Desde Finales Conf.', color: 'text-pink-400' },
+    { id: 'rf', label: 'Solo Gran Final', color: 'text-amber-500' }
+  ];
+
+  const totalScore = layers.reduce((acc, l) => acc + calculateLayerScore(l.id), 0);
 
   return (
-    <div className="p-4 space-y-8 max-w-lg mx-auto">
-      <div className="text-center py-10 space-y-2">
-        <div className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">Tus Puntos Totales</div>
-        <motion.div 
-          key={total}
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="text-8xl font-['Barlow_Condensed'] font-black text-amber-500 drop-shadow-[0_0_30px_rgba(245,158,11,0.3)]"
-        >
-          {total}
-        </motion.div>
-        <div className="text-xs text-slate-600 font-bold">Actualizado en tiempo real</div>
-      </div>
-
-      <div className="bg-[#0f1117] border border-white/5 rounded-2xl p-6 space-y-6">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-[#161922] p-4 rounded-xl border border-white/5">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Puntos R1</div>
-            <div className="text-2xl font-['Barlow_Condensed'] font-black text-green-400">4 / 2 PTS</div>
-          </div>
-          <div className="bg-[#161922] p-4 rounded-xl border border-white/5">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Puntos R2</div>
-            <div className="text-2xl font-['Barlow_Condensed'] font-black text-blue-400">3 / 1 PTS</div>
-          </div>
-        </div>
-        
-        <p className="text-[11px] text-slate-500 text-center uppercase tracking-wider leading-relaxed">
-          Los puntos son acumulativos. Acertar desde R1 <br/> vale más que esperar a que avance el bracket.
+    <div className="space-y-6 max-w-lg mx-auto pb-10">
+      <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-3xl p-8 text-black text-center shadow-2xl relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+        <Trophy className="w-12 h-12 mx-auto mb-2 opacity-50" />
+        <h2 className="font-['Barlow_Condensed'] font-black text-4xl italic uppercase">Puntos Totales</h2>
+        <div className="text-8xl font-['Barlow_Condensed'] font-black mt-1 leading-none">{totalScore}</div>
+        <p className="mt-4 font-bold uppercase tracking-widest text-[10px] opacity-70">
+          ¡Vas muy bien, {user?.displayName?.split(' ')?.[0] || 'Fan'}!
         </p>
       </div>
 
-      <div className="space-y-4">
-        <SectionLabel>Capas de Predicción</SectionLabel>
-        <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden divide-y divide-white/5">
-          {[
-            { id: 'r1', label: 'Predicción R1', color: 'text-green-400' },
-            { id: 'r2', label: 'Predicción R2', color: 'text-blue-400' },
-            { id: 'r3', label: 'Predicción R3', color: 'text-pink-400' },
-            { id: 'rf', label: 'Predicción Finals', color: 'text-amber-500' }
-          ].map(pk => (
-            <div key={pk.id} className="flex items-center justify-between p-4">
-               <div className="flex items-center gap-3">
-                 <div className={`w-2 h-2 rounded-full ${pk.id === 'r1' ? 'bg-green-400' : pk.id === 'r2' ? 'bg-blue-400' : pk.id === 'r3' ? 'bg-pink-400' : 'bg-amber-500'}`} />
-                 <span className={`font-['Barlow_Condensed'] font-bold text-sm uppercase tracking-widest ${pk.color}`}>{pk.label}</span>
-               </div>
-               <div className="text-xs font-bold text-slate-500">
-                 {pk.id === 'r1' ? 'R1, R2, R3, Finals' : pk.id === 'r2' ? 'R2, R3, Finals' : pk.id === 'r3' ? 'R3, Finals' : 'Finals'}
-               </div>
-            </div>
-          ))}
+      <div className="space-y-3">
+        <SectionLabel>Desglose por Capa (Navegable)</SectionLabel>
+        <p className="text-[10px] text-slate-500 uppercase font-black px-2 italic mb-2 tracking-wider">
+          Puntos acumulados según cuándo empezaste a predecir
+        </p>
+        
+        <div className="space-y-3">
+          {layers.map(l => {
+            const pts = calculateLayerScore(l.id);
+            return (
+              <button
+                key={l.id}
+                onClick={() => onNavigate(l.id)}
+                className="w-full bg-[#161922] border border-white/5 hover:border-yellow-500/50 rounded-2xl p-5 flex items-center justify-between group transition-all"
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-full bg-white/5 flex items-center justify-center font-black text-lg italic group-hover:bg-yellow-500 group-hover:text-black transition-colors ${l.color}`}>
+                    {l.id.toUpperCase()}
+                  </div>
+                  <div className="text-left">
+                    <div className="font-['Barlow_Condensed'] font-bold text-white uppercase tracking-widest">{l.label}</div>
+                    <div className="text-[10px] text-slate-500 font-bold uppercase">Ver mis aciertos/fallos</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className={`text-2xl font-['Barlow_Condensed'] font-black ${pts > 0 ? 'text-yellow-500' : 'text-slate-700'}`}>{pts}</div>
+                    <div className="text-[9px] text-slate-600 font-black uppercase">puntos</div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-700 group-hover:text-yellow-500 transition-colors" />
+                </div>
+              </button>
+            );
+          })}
         </div>
+      </div>
+
+      <div className="bg-[#0f1117] border border-white/5 rounded-2xl p-6">
+        <SectionLabel>¿Cómo se suma?</SectionLabel>
+        <div className="grid grid-cols-2 gap-y-4 gap-x-2 mt-4">
+          <ScoreTile label="R1" win="2" exact="3" />
+          <ScoreTile label="Semis" win="4" exact="6" />
+          <ScoreTile label="Final Conf" win="8" exact="12" />
+          <ScoreTile label="Final NBA" win="16" exact="24" />
+        </div>
+        <p className="mt-6 text-[10px] text-slate-500 text-center uppercase font-bold tracking-tighter leading-tight italic">
+          * Los puntos se multiplican si predijiste <br/> el ganador desde una etapa anterior.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ScoreTile({ label, win, exact }: { label: string, win: string, exact: string }) {
+  return (
+    <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+      <div className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">{label}</div>
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] text-slate-500 font-bold uppercase">Ganador</span>
+        <span className="text-sm font-black text-white">{win}</span>
+      </div>
+      <div className="flex items-center justify-between pt-1 border-t border-white/5 mt-1">
+        <span className="text-[9px] text-slate-500 font-bold uppercase">Exacto</span>
+        <span className="text-sm font-black text-white">{exact}</span>
       </div>
     </div>
   );
