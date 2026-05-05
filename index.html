@@ -535,6 +535,8 @@ let PREDS = { r1: freshPRED(), r2: freshPRED(), r3: freshPRED(), rf: freshPRED()
 
 // ── FIX: flag para saber si ya cargaron los datos del admin ──
 let REAL_LOADED = false;
+// ── FIX: flag para ignorar el echo de Firebase cuando el admin está guardando ──
+let ADMIN_SAVING = false;
 
 let MODE = 'r1';
 let CONF = 'east';
@@ -594,19 +596,22 @@ function loadAll(uid){
     // Firebase onValue dispara inmediatamente con el valor actual
     // y luego cada vez que cambia
     window.FB.onShared('adminResults', d => {
-      console.log('[NBAngs] adminResults recibido:', d ? 'con datos' : 'vacío/null');
+      // ── FIX PARPADEO: si el admin acaba de guardar, ignorar el echo
+      // que Firebase devuelve (ya tenemos el estado correcto en memoria)
+      if(ADMIN_SAVING){
+        ADMIN_SAVING = false;
+        REAL_LOADED = true;
+        return; // No re-renderizar — el estado local ya es correcto
+      }
 
       if(d && typeof d === 'object'){
         REAL = deepMerge(freshREAL(), d);
         propagateREAL();
       } else {
-        // No hay datos del admin todavía — resetear a fresco
         REAL = freshREAL();
       }
 
       REAL_LOADED = true;
-
-      // Re-renderizar toda la vista con los nuevos datos
       renderAll();
     });
 
@@ -657,13 +662,15 @@ function doSave(){
   if(!uid || !window.FB) return;
 
   if(MODE === 'admin'){
-    // ── FIX: guardar inmediatamente sin delay, con feedback ──
+    // ── FIX PARPADEO: marcar que somos nosotros quien guarda
+    // para que el listener ignore el echo de Firebase
+    ADMIN_SAVING = true;
     window.FB.setShared('adminResults', deepClone(REAL))
       .then(() => {
-        console.log('[NBAngs] adminResults guardado en Firebase OK');
         showToast();
       })
       .catch(e => {
+        ADMIN_SAVING = false; // Si falla, resetear el flag
         console.error('[NBAngs] Error guardando adminResults:', e);
         alert('Error al guardar: ' + e.message);
       });
