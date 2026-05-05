@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "Team": {
+      "title": "NBA Team",
+      "description": "Represents an NBA team in the bracket",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "short": { "type": "string" },
+        "conf": { "type": "string" },
+        "seed": { "type": "string" }
+      }
+    },
+    "Match": {
+      "title": "Bracket Matchup",
+      "description": "A signup matchup between two teams",
+      "type": "object",
+      "properties": {
+        "t": {
+          "type": "array",
+          "items": { "oneOf": [{ "$ref": "Team" }, { "type": "null" }] }
+        },
+        "w": {
+          "type": "array",
+          "items": { "type": "number" }
+        }
+      }
+    },
+    "Bracket": {
+      "title": "Full Bracket State",
+      "description": "The complete state of the playoff bracket",
+      "type": "object",
+      "properties": {
+        "east": { "type": "object" },
+        "west": { "type": "object" },
+        "finals": { "$ref": "Match" }
+      }
+    },
+    "Prediction": {
+      "title": "User Prediction",
+      "description": "User's predicted wins for a bracket layer",
+      "type": "object",
+      "properties": {
+        "east": { "type": "object" },
+        "west": { "type": "object" },
+        "finals": { "type": "object" }
+      }
+    }
+  },
+  "firestore": {
+    "/shared/adminResults": {
+      "schema": "Bracket",
+      "description": "The official results and team pairings set by the admin"
+    },
+    "/users/{userId}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string" },
+          "predictions": {
+            "type": "object",
+            "additionalProperties": { "$ref": "Prediction" }
+          }
+        }
+      },
+      "description": "User profile and predictions"
+    }
+  }
+}

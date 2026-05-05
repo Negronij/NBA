@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // In a real app, you'd use a collection for admins. 
+    // Here we bootstrap with the user's provided email.
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'juan.ignacio.negroni@gmail.com' ||
+        request.auth.token.email == 'juannegroni912@gmail.com' // From metadata
+      ) && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Phase 4: Shared Bracket Rules
+    match /shared/adminResults {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Phase 4: User Prediction Rules
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && (
+        // Validate keys and types
+        request.resource.data.keys().hasAll(['predictions']) &&
+        request.resource.data.predictions is map
+      );
+    }
+  }
+}
