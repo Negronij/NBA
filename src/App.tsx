@@ -894,33 +894,36 @@ function FinalsView({
 }
 
 function ScoreView({ user, realBracket, userPredictions, onNavigate }: { user: User | null, realBracket: Bracket, userPredictions: any, onNavigate: (m: Mode) => void }) {
+  // We need to calculate the predicted bracket for EACH layer to know which teams the user "picked"
+  const predBrackets = useMemo(() => {
+    return {
+      r1: getBracketForMode('r1', realBracket, userPredictions.r1),
+      r2: getBracketForMode('r2', realBracket, userPredictions.r2),
+      r3: getBracketForMode('r3', realBracket, userPredictions.r3),
+      rf: getBracketForMode('rf', realBracket, userPredictions.rf),
+    };
+  }, [realBracket, userPredictions]);
+
   const scoreMatch = (layerKey: Mode, conf: 'east' | 'west' | 'finals', round: string, idx: number) => {
     const realM = conf === 'finals' ? realBracket.finals : realBracket[conf][round as keyof Round][idx];
     const realW = winner(realM);
     if (realW === null) return { status: 'pending', pts: 0 };
 
-    const pred = userPredictions[layerKey];
-    if (!pred) return { status: 'none', pts: 0 };
+    const predB = predBrackets[layerKey as keyof typeof predBrackets];
+    const predM = conf === 'finals' ? predB.finals : predB[conf][round as keyof Round][idx];
     
-    // Pick the correct prediction for the matchup
-    const pm = conf === 'finals' ? pred.finals : pred[conf][round as keyof Round][idx];
-    const pw = pm.w;
+    // User wins prediction for this layer
+    const layerPred = userPredictions[layerKey];
+    const pw = conf === 'finals' ? layerPred.finals.w : layerPred[conf][round as keyof Round][idx].w;
     const predW = pw[0] === 4 ? 0 : pw[1] === 4 ? 1 : null;
+    
     if (predW === null) return { status: 'none', pts: 0 };
 
-    // Check if the team picked is actually the team that won in real life
-    // Note: Teams in prediction might differ from real bracket due to propagation
-    const realWinnerTeamId = realM.t[realW]?.id;
-    // In our prediction bracket logic, the teams in 'pm' are what the user PREDICTED would be there
-    // But for scoring, we usually compare if the winner they picked is the REAL winner.
-    // However, if they predicted Team A vs Team B and it was Team C vs Team D, they already lost.
-    const predWinnerTeamId = pm.t[predW]?.id;
+    const realT = realM.t[realW];
+    const predT = predM.t[predW];
 
-    if (!realWinnerTeamId || !predWinnerTeamId || realWinnerTeamId !== predWinnerTeamId) {
-      return { status: 'miss', pts: 0 };
-    }
+    if (!realT || !predT || realT.id !== predT.id) return { status: 'miss', pts: 0 };
 
-    // Points scale
     const ptsMap: Record<string, [number, number]> = { r1: [2, 3], r2: [4, 6], r3: [8, 12], rf: [16, 24] };
     const rKey = round === 'finals' ? 'rf' : (round === 'r1' ? 'r1' : round === 'r2' ? 'r2' : 'r3');
     const [winPts, exactPts] = ptsMap[rKey] || [0, 0];
