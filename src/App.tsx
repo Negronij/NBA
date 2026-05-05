@@ -121,6 +121,70 @@ function propagateREAL(bracket: Bracket): Bracket {
 
 // --- Main Component ---
 
+/**
+ * Calculates the teams for a specific prediction mode/layer.
+ * Propagation happens within the layer based on user choices.
+ */
+function getBracketForMode(mode: Mode, realBracket: Bracket, userPred: Prediction): Bracket {
+  if (mode === 'admin') return realBracket;
+
+  const result = JSON.parse(JSON.stringify(realBracket)) as Bracket;
+  const P = userPred;
+
+  // Helper to determine winner of a prediction match
+  const pWinner = (winArray: [number, number]): number | null => {
+    if (winArray[0] === 4) return 0;
+    if (winArray[1] === 4) return 1;
+    return null;
+  };
+
+  // Layers start from different entry points
+  const layers = {
+    r1: { start: 'r1' as const },
+    r2: { start: 'r2' as const },
+    r3: { start: 'r3' as const },
+    rf: { start: 'finals' as const },
+  };
+
+  if (mode === 'pts') return realBracket; // Not used for display
+
+  const startRound = layers[mode as keyof typeof layers]?.start;
+
+  (['east', 'west'] as const).forEach(c => {
+    const B = result[c];
+    const pB = P[c];
+    if (!pB) return;
+
+    // Round 1 -> Round 2 (Only if layer starts at R1)
+    if (startRound === 'r1' && pB.r1) {
+      for (let i = 0; i < 2; i++) {
+        const w0 = pWinner(pB.r1[i * 2]?.w || [0,0]);
+        const w1 = pWinner(pB.r1[i * 2 + 1]?.w || [0,0]);
+        B.r2[i].t[0] = w0 !== null ? (B.r1[i * 2].t[w0] || null) : null;
+        B.r2[i].t[1] = w1 !== null ? (B.r1[i * 2 + 1].t[w1] || null) : null;
+      }
+    }
+
+    // Round 2 -> Round 3 (If layer starts at R1 or R2)
+    if ((startRound === 'r1' || startRound === 'r2') && pB.r2) {
+      const w0 = pWinner(pB.r2[0]?.w || [0,0]);
+      const w1 = pWinner(pB.r2[1]?.w || [0,0]);
+      B.r3[0].t[0] = w0 !== null ? (B.r2[0].t[w0] || null) : null;
+      B.r3[0].t[1] = w1 !== null ? (B.r2[1].t[w1] || null) : null;
+    }
+  });
+
+  // Round 3 -> Finals (If layer starts at R1, R2, or R3)
+  if (startRound === 'r1' || startRound === 'r2' || startRound === 'r3') {
+    const ew = pWinner(P.east?.r3?.[0]?.w || [0,0]);
+    const ww = pWinner(P.west?.r3?.[0]?.w || [0,0]);
+    result.finals.t[0] = ew !== null ? (result.east.r3[0].t[ew] || null) : null;
+    result.finals.t[1] = ww !== null ? (result.west.r3[0].t[ww] || null) : null;
+  }
+
+  return result;
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -330,25 +394,28 @@ export default function App() {
   const renderBracket = () => {
     if (mode === 'pts') return <ScoreView user={user} realBracket={realBracket} userPredictions={userPredictions} />;
 
+    const currentLayer = mode === 'admin' ? 'r1' : mode;
+    const displayBracket = getBracketForMode(mode, realBracket, userPredictions[currentLayer]);
+
     return (
       <div className="p-4 max-w-2xl mx-auto space-y-6">
-        <Banner mode={mode} isAdmin={isAdmin} />
+        <Banner mode={mode} isAdmin={isAdmin || false} />
         
         {conf === 'finals' ? (
           <FinalsView 
             mode={mode} 
-            isAdmin={isAdmin} 
-            bracket={realBracket} 
-            prediction={userPredictions[mode === 'admin' ? 'r1' : mode]}
+            isAdmin={isAdmin || false} 
+            bracket={displayBracket} 
+            prediction={userPredictions[currentLayer]}
             onAdjust={handleAdjustWins}
           />
         ) : (
           <ConferenceView 
             conf={conf} 
             mode={mode} 
-            isAdmin={isAdmin} 
-            bracket={realBracket} 
-            prediction={userPredictions[mode === 'admin' ? 'r1' : mode]}
+            isAdmin={isAdmin || false} 
+            bracket={displayBracket} 
+            prediction={userPredictions[currentLayer]}
             onAdjust={handleAdjustWins}
             onPick={(c: any, r: any, i: any, s: any) => setTeamSelector({ conf: c, round: r, idx: i, slot: s })}
             onSeed={handleSetSeed}
@@ -666,7 +733,7 @@ function Matchup({
 }
 
 function ConferenceView({ 
-  conf, mode, isAdmin, bracket, prediction, onAdjust, onPick, onSeed 
+  conf, mode, isAdmin: isAdminUser, bracket, prediction, onAdjust, onPick, onSeed 
 }: { 
   conf: 'east' | 'west', mode: Mode, isAdmin: boolean, 
   bracket: Bracket, prediction: Prediction, onAdjust: any, onPick: any, onSeed: any 
@@ -689,7 +756,7 @@ function ConferenceView({
       {showR1 && (
         <>
           <SectionLabel>Primera Ronda</SectionLabel>
-          {!isR1Ready && !isAdminMode && !isAdmin && (
+          {!isR1Ready && !isAdminMode && (
             <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500 flex flex-col items-center gap-3">
               <Lock className="w-8 h-8 opacity-20" />
               <p className="font-['Barlow_Condensed'] font-bold text-sm uppercase tracking-widest leading-tight">
@@ -701,7 +768,7 @@ function ConferenceView({
             {B.r1.map((m, i) => (
               (isAdminMode || (m.t[0] && m.t[1])) && (
                 <Matchup 
-                  key={`r1-${i}-${m.t[0]?.id}-${m.t[1]?.id}`} conf={c} round="r1" idx={i} m={m} pm={P.r1[i]} 
+                  key={`r1-${mode}-${c}-${i}-${m.t[0]?.id}-${m.t[1]?.id}`} conf={c} round="r1" idx={i} m={m} pm={P.r1[i]} 
                   onAdjust={onAdjust} isAdminMode={isAdminMode} onPick={onPick} onSeed={onSeed} 
                 />
               )
@@ -713,16 +780,17 @@ function ConferenceView({
       {showR2 && (
         <>
           <SectionLabel>Semifinales de Conferencia</SectionLabel>
-          {!isR2Ready && !isAdminMode && isR1Ready && !isAdmin && (
-            <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500">
-              <p className="text-xs uppercase tracking-widest font-bold">Por definir por el Admin</p>
+          {!isR2Ready && !isAdminMode && mode === 'r2' && (
+            <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500 flex flex-col items-center gap-3">
+              <Lock className="w-8 h-8 opacity-20" />
+              <p className="text-xs uppercase tracking-widest font-bold">Por definir por el Admin en Resultados Reales</p>
             </div>
           )}
           <div className="space-y-2">
             {B.r2.map((m, i) => (
               (isAdminMode || (m.t[0] && m.t[1])) && (
                 <Matchup 
-                  key={`r2-${i}-${m.t[0]?.id}-${m.t[1]?.id}`} conf={c} round="r2" idx={i} m={m} pm={P.r2[i]} 
+                  key={`r2-${mode}-${c}-${i}-${m.t[0]?.id}-${m.t[1]?.id}`} conf={c} round="r2" idx={i} m={m} pm={P.r2[i]} 
                   onAdjust={onAdjust} isAdminMode={isAdminMode} 
                 />
               )
@@ -734,14 +802,15 @@ function ConferenceView({
       {showR3 && (
         <>
           <SectionLabel>Final de Conferencia</SectionLabel>
-          {!isR3Ready && !isAdminMode && isR2Ready && !isAdmin && (
-            <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500">
-              <p className="text-xs uppercase tracking-widest font-bold">Por definir por el Admin</p>
+          {!isR3Ready && !isAdminMode && mode === 'r3' && (
+            <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500 flex flex-col items-center gap-3">
+              <Lock className="w-8 h-8 opacity-20" />
+              <p className="text-xs uppercase tracking-widest font-bold">Por definir por el Admin en Resultados Reales</p>
             </div>
           )}
           {(isAdminMode || (B.r3[0].t[0] && B.r3[0].t[1])) && (
             <Matchup 
-              conf={c} round="r3" idx={0} m={B.r3[0]} pm={P.r3[0]} 
+              key={`r3-${mode}-${c}-${B.r3[0].t[0]?.id}-${B.r3[0].t[1]?.id}`} conf={c} round="r3" idx={0} m={B.r3[0]} pm={P.r3[0]} 
               onAdjust={onAdjust} isAdminMode={isAdminMode} 
             />
           )}
