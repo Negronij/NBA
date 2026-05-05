@@ -1,696 +1,1273 @@
 <!DOCTYPE html>
+
 <html lang="es">
+
 <head>
+
 <meta charset="UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
 <title>NBAngs – Playoff Bracket 2025</title>
+
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 
 <!-- FIREBASE -->
+
 <script type="module">
+
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+
   import { getAuth, GoogleAuthProvider, signInWithPopup,
+
            signInWithEmailAndPassword, createUserWithEmailAndPassword,
+
            signOut, onAuthStateChanged }
+
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
   import { getDatabase, ref, set, get, onValue }
+
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
   const CFG = {
+
     apiKey:"AIzaSyAY9Byo6XKRTys4zRaMcP57v2hUiLcwxvw",
+
     authDomain:"nbangs-a10fc.firebaseapp.com",
+
     databaseURL:"https://nbangs-a10fc-default-rtdb.firebaseio.com",
+
     projectId:"nbangs-a10fc",
+
     storageBucket:"nbangs-a10fc.firebasestorage.app",
+
     messagingSenderId:"498517184830",
+
     appId:"1:498517184830:web:c6fb5400a72d89fb8a1c6f"
+
   };
+
   const app = initializeApp(CFG);
+
   const auth = getAuth(app);
+
   const db   = getDatabase(app);
 
   const ADMIN = 'juan.ignacio.negroni@gmail.com';
 
   onAuthStateChanged(auth, user => {
+
     window.FB_USER   = user || null;
+
     window.IS_ADMIN  = user ? user.email === ADMIN : false;
+
     if (user) { showApp(user); startListeners(user.uid); }
+
     else       { showLogin(); }
+
   });
 
   window.FB = {
+
     loginEmail : (e,p) => signInWithEmailAndPassword(auth,e,p)
+
                           .catch(()=>createUserWithEmailAndPassword(auth,e,p))
+
                           .catch(err=>setAuthErr(err.message)),
+
     loginGoogle: ()    => signInWithPopup(auth, new GoogleAuthProvider())
+
                           .catch(err=>setAuthErr(err.message)),
+
     logout     : ()    => signOut(auth),
+
     setShared  : (k,v) => set(ref(db,`shared/${k}`), v),
+
     setUser    : (uid,k,v) => set(ref(db,`users/${uid}/${k}`), v),
+
     getUser    : (uid,k)   => get(ref(db,`users/${uid}/${k}`)).then(s=>s.exists()?s.val():null),
+
     onShared   : (k,cb)    => onValue(ref(db,`shared/${k}`), s=>cb(s.exists()?s.val():null)),
+
   };
+
 </script>
 
 <style>
+
 :root{
+
   --bg:#08090d; --bg2:#0f1117; --bg3:#161922; --bg4:#1d2130;
+
   --bdr:rgba(255,255,255,.07); --bdr2:rgba(255,255,255,.14);
+
   --gold:#c9a84c; --gold2:#e8c96a; --goldg:linear-gradient(135deg,#e8c96a,#c9a84c);
+
   --txt:#eef0f5; --txt2:#8892a8; --txt3:#4a5268;
+
   --east:#1a6bb5; --east2:#3a9de8;
+
   --west:#b53020; --west2:#e04428;
+
   --green:#22c55e; --green2:#16a34a;
+
   --purple:#7c3aed;
+
   --r:10px; --rs:6px;
+
 }
+
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+
 body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden}
+
 button{font-family:inherit;cursor:pointer}
 
 /* ── LOGIN ────────────────────────────────────── */
+
 #login-scr{min-height:100vh;display:flex;flex-direction:column;align-items:center;
+
   justify-content:center;padding:24px;
+
   background:radial-gradient(ellipse 80% 60% at 50% 0%,#1c2540 0%,var(--bg) 70%)}
+
 .l-logo{width:76px;height:76px;border-radius:50%;background:var(--goldg);
+
   display:flex;align-items:center;justify-content:center;
+
   font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;color:#000;
+
   margin-bottom:14px;box-shadow:0 0 50px rgba(201,168,76,.3)}
+
 .l-title{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;
+
   letter-spacing:3px;color:var(--gold2)}
+
 .l-sub{font-size:12px;color:var(--txt3);letter-spacing:2px;text-transform:uppercase;margin-bottom:36px}
+
 .l-card{background:var(--bg2);border:1px solid var(--bdr2);border-radius:16px;
+
   padding:24px;width:100%;max-width:360px}
+
 .l-card h3{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;
+
   letter-spacing:.5px;margin-bottom:16px;color:var(--txt2)}
+
 .l-inp{width:100%;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rs);
+
   padding:12px 14px;font-size:15px;color:var(--txt);font-family:'Barlow',sans-serif;
+
   margin-bottom:10px;outline:none;transition:border-color .2s}
+
 .l-inp:focus{border-color:var(--gold)}
+
 .btn-gold{width:100%;background:var(--goldg);color:#000;border:none;border-radius:var(--rs);
+
   padding:13px;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;
+
   letter-spacing:.5px;margin-bottom:10px}
+
 .btn-ghost{width:100%;background:var(--bg3);color:var(--txt);border:1px solid var(--bdr2);
+
   border-radius:var(--rs);padding:12px;font-family:'Barlow Condensed',sans-serif;
+
   font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px}
+
 .divider{display:flex;align-items:center;gap:10px;margin:12px 0}
+
 .divider span{font-size:12px;color:var(--txt3)}
+
 .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--bdr)}
+
 #auth-err{color:#f87171;font-size:12px;margin-top:8px;min-height:16px}
 
 /* ── APP SHELL ────────────────────────────────── */
+
 #app-scr{display:none;min-height:100vh}
+
 .hdr{background:var(--bg2);border-bottom:1px solid var(--bdr);padding:12px 16px;
+
   display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50}
+
 .hdr-logo{width:36px;height:36px;border-radius:50%;background:var(--goldg);
+
   display:flex;align-items:center;justify-content:center;
+
   font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:13px;color:#000;flex-shrink:0}
+
 .hdr-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;line-height:1.1;color:var(--gold2)}
+
 .hdr-sub{font-size:10px;color:var(--txt3);letter-spacing:1.5px;text-transform:uppercase}
+
 .hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+
 .av{width:30px;height:30px;border-radius:50%;background:var(--bg4);border:1.5px solid var(--bdr2);
+
   display:flex;align-items:center;justify-content:center;font-size:13px;overflow:hidden}
+
 .av img{width:100%;height:100%;object-fit:cover}
+
 .badge-admin{background:var(--purple);color:#fff;font-family:'Barlow Condensed',sans-serif;
+
   font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.5px}
+
 .btn-out{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--rs);
+
   color:var(--txt3);font-size:11px;font-family:'Barlow Condensed',sans-serif;
+
   padding:4px 10px;letter-spacing:.3px}
 
 /* ── MODE TABS ────────────────────────────────── */
+
 .mode-bar{display:flex;background:var(--bg3);border-bottom:1px solid var(--bdr);
+
   overflow-x:auto;scrollbar-width:none}
+
 .mode-bar::-webkit-scrollbar{display:none}
+
 .mt{flex:1;min-width:72px;padding:9px 4px;text-align:center;
+
   font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+
   letter-spacing:.6px;text-transform:uppercase;color:var(--txt3);
+
   border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;user-select:none}
+
 .mt.disabled{opacity:.3;pointer-events:none}
+
 .mt.act-r1{color:#4ade80;border-bottom-color:#4ade80;background:rgba(74,222,128,.07)}
+
 .mt.act-r2{color:#60a5fa;border-bottom-color:#60a5fa;background:rgba(96,165,250,.07)}
+
 .mt.act-r3{color:#f472b6;border-bottom-color:#f472b6;background:rgba(244,114,182,.07)}
+
 .mt.act-rf{color:var(--gold2);border-bottom-color:var(--gold2);background:rgba(201,168,76,.07)}
+
 .mt.act-real{color:var(--west2);border-bottom-color:var(--west2);background:rgba(224,68,40,.07)}
+
 .mt.act-pts{color:var(--gold2);border-bottom-color:var(--gold2);background:rgba(201,168,76,.07)}
 
 /* ── CONF TABS ────────────────────────────────── */
+
 .conf-bar{display:flex;background:var(--bg2);border-bottom:1px solid var(--bdr);overflow-x:auto;scrollbar-width:none}
+
 .conf-bar::-webkit-scrollbar{display:none}
+
 .ct{flex:1;min-width:80px;padding:10px 8px;text-align:center;
+
   font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;
+
   letter-spacing:.5px;color:var(--txt3);border-bottom:2px solid transparent;
+
   transition:all .2s;white-space:nowrap;user-select:none}
+
 .ct.act-e{color:var(--east2);border-bottom-color:var(--east2);background:rgba(58,157,232,.06)}
+
 .ct.act-w{color:var(--west2);border-bottom-color:var(--west2);background:rgba(224,68,40,.06)}
+
 .ct.act-f{color:var(--gold);border-bottom-color:var(--gold);background:rgba(201,168,76,.06)}
 
 /* ── PAGES ────────────────────────────────────── */
+
 .page{display:none;padding:14px 14px 80px}
+
 .page.active{display:block}
 
 /* ── BANNER ───────────────────────────────────── */
+
 .banner{display:flex;align-items:center;gap:8px;border-radius:var(--r);
+
   padding:9px 13px;margin-bottom:14px;font-family:'Barlow Condensed',sans-serif;
+
   font-size:12px;font-weight:600;letter-spacing:.3px}
+
 .banner-dot{width:7px;height:7px;border-radius:50%;background:currentColor;
+
   flex-shrink:0;animation:pulse 1.8s infinite}
+
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
 .bn-real{background:linear-gradient(135deg,rgba(224,68,40,.18),rgba(224,68,40,.04));
+
   border:1px solid rgba(224,68,40,.3);color:var(--west2)}
+
 .bn-r1{background:linear-gradient(135deg,rgba(74,222,128,.1),rgba(74,222,128,.02));
+
   border:1px solid rgba(74,222,128,.25);color:#4ade80}
+
 .bn-r2{background:linear-gradient(135deg,rgba(96,165,250,.1),rgba(96,165,250,.02));
+
   border:1px solid rgba(96,165,250,.25);color:#60a5fa}
+
 .bn-r3{background:linear-gradient(135deg,rgba(244,114,182,.1),rgba(244,114,182,.02));
+
   border:1px solid rgba(244,114,182,.25);color:#f472b6}
+
 .bn-rf{background:linear-gradient(135deg,rgba(201,168,76,.12),rgba(201,168,76,.02));
+
   border:1px solid rgba(201,168,76,.25);color:var(--gold)}
 
 /* ── ROUND LABEL ──────────────────────────────── */
+
 .rl{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+
   letter-spacing:2px;text-transform:uppercase;color:var(--txt3);
+
   margin:18px 0 10px 2px;display:flex;align-items:center;gap:8px}
+
 .rl::after{content:'';flex:1;height:1px;background:var(--bdr)}
 
 /* ── CONF HEADER ──────────────────────────────── */
+
 .ch{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--r);margin-bottom:14px;
+
   font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+
 .ch.east{background:linear-gradient(135deg,rgba(26,107,181,.22),rgba(26,107,181,.04));
+
   border:1px solid rgba(58,157,232,.2);color:var(--east2)}
+
 .ch.west{background:linear-gradient(135deg,rgba(181,48,32,.22),rgba(181,48,32,.04));
+
   border:1px solid rgba(224,68,40,.2);color:var(--west2)}
+
 .ch-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
 
 /* ── MATCHUP CARD ─────────────────────────────── */
+
 .matchup{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);
+
   overflow:hidden;margin-bottom:10px;transition:border-color .2s}
+
 .matchup.done{border-color:rgba(34,197,94,.25)}
+
 .matchup.locked{opacity:.55}
 
 .team-row{display:flex;align-items:center;gap:10px;padding:10px 12px;min-height:54px;
+
   transition:background .15s}
+
 .team-row+.team-row{border-top:1px solid var(--bdr)}
+
 .team-row.winner{background:rgba(34,197,94,.1)}
+
 .team-row.winner .tname{color:#5de088;font-weight:700}
+
 .team-row.winner .seed{background:rgba(34,197,94,.25);color:#9effc0}
+
 .team-row.tap{cursor:pointer}
+
 .team-row.tap:active{background:var(--bg3)}
 
 .logo-wrap{width:36px;height:36px;border-radius:50%;background:#fff;border:1.5px solid rgba(255,255,255,.15);
+
   display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}
+
 .logo-wrap img{width:32px;height:32px;object-fit:contain}
+
 .logo-ph{width:36px;height:36px;border-radius:50%;background:var(--bg4);
+
   border:1px dashed var(--bdr2);display:flex;align-items:center;justify-content:center;
+
   font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--txt3);flex-shrink:0}
 
 .seed{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+
   background:var(--bg4);color:var(--txt3);border-radius:4px;padding:2px 5px;
+
   min-width:20px;text-align:center;flex-shrink:0}
+
 .seed.clickable{cursor:pointer;border:1px dashed rgba(124,58,237,.4)}
 
 .tname{flex:1;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:600;
+
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 .tname.empty{color:var(--txt3);font-weight:400;font-size:14px}
+
 .tap-hint{font-size:9px;color:var(--purple);font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px;opacity:.8}
 
 /* wins control */
+
 .wc{display:flex;align-items:center;background:var(--bg3);border:1px solid var(--bdr);
+
   border-radius:var(--rs);overflow:hidden;flex-shrink:0}
+
 .wb{width:30px;height:30px;background:transparent;border:none;color:var(--txt2);
+
   font-size:18px;display:flex;align-items:center;justify-content:center;line-height:1}
+
 .wb:active{background:var(--bg4);color:var(--txt)}
+
 .wn{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;
+
   color:var(--txt);min-width:22px;text-align:center}
+
 .wn.four{color:#5de088}
 
 /* series bar */
+
 .sbar{display:flex;align-items:center;justify-content:center;padding:5px 12px;gap:6px;
+
   background:var(--bg3);font-size:11px;color:var(--txt3);font-family:'Barlow Condensed',sans-serif}
+
 .sres{font-size:12px;font-weight:700;color:#5de088;background:rgba(34,197,94,.2);
+
   padding:2px 10px;border-radius:4px}
+
 .pip-row{display:flex;gap:3px}
+
 .pip{width:8px;height:8px;border-radius:50%;background:var(--bg4);border:1px solid var(--bdr2)}
+
 .pip.ft{background:#5de088;border-color:#5de088}
+
 .pip.fb{background:#e04428;border-color:#e04428}
 
 /* locked notice */
+
 .lock-notice{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r);
+
   padding:20px 16px;text-align:center;margin-bottom:10px;color:var(--txt3)}
+
 .lock-notice .lock-ico{font-size:28px;margin-bottom:8px}
+
 .lock-notice p{font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.5px}
 
 /* ── FINALS PAGE ──────────────────────────────── */
+
 .finals-hero{text-align:center;padding:22px 16px 18px}
+
 .finals-ico{font-size:52px;line-height:1;margin-bottom:8px;filter:drop-shadow(0 0 18px rgba(201,168,76,.4))}
+
 .finals-ttl{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;
+
   letter-spacing:3px;text-transform:uppercase;color:var(--gold2)}
+
 .finals-sub{font-size:11px;color:var(--txt3);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px}
+
 .champ-box{background:linear-gradient(135deg,rgba(201,168,76,.18),rgba(201,168,76,.04));
+
   border:1px solid rgba(201,168,76,.3);border-radius:var(--r);padding:16px;text-align:center;margin-bottom:18px}
+
 .champ-lbl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:8px}
+
 .champ-name{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800}
 
 /* ── SCORE PAGE ───────────────────────────────── */
+
 .score-page{padding:14px 14px 80px}
+
 .score-hero{text-align:center;padding:22px 16px 18px}
+
 .score-n{font-family:'Barlow Condensed',sans-serif;font-size:80px;font-weight:900;
+
   color:var(--gold2);line-height:1;filter:drop-shadow(0 0 20px rgba(201,168,76,.3))}
+
 .score-lbl{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--txt3);margin-top:4px}
+
 .sc-sec-ttl{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+
   letter-spacing:2px;text-transform:uppercase;color:var(--txt3);
+
   margin:20px 0 10px 2px;display:flex;align-items:center;gap:8px}
+
 .sc-sec-ttl::after{content:'';flex:1;height:1px;background:var(--bdr)}
+
 .sc-card{background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);
+
   margin-bottom:8px;overflow:hidden}
+
 .sc-head{display:flex;align-items:center;justify-content:space-between;
+
   padding:7px 12px;background:var(--bg3);border-bottom:1px solid var(--bdr)}
+
 .sc-lbl{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+
   letter-spacing:.8px;text-transform:uppercase;color:var(--txt3)}
+
 .pts-chip{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;
+
   padding:2px 10px;border-radius:20px}
+
 .pc-r1e{background:rgba(74,222,128,.2);color:#4ade80;border:1px solid rgba(74,222,128,.35)}
+
 .pc-r1w{background:rgba(74,222,128,.1);color:#4ade80;border:1px solid rgba(74,222,128,.2)}
+
 .pc-r2e{background:rgba(96,165,250,.2);color:#60a5fa;border:1px solid rgba(96,165,250,.35)}
+
 .pc-r2w{background:rgba(96,165,250,.1);color:#60a5fa;border:1px solid rgba(96,165,250,.2)}
+
 .pc-r3e{background:rgba(244,114,182,.2);color:#f472b6;border:1px solid rgba(244,114,182,.35)}
+
 .pc-r3w{background:rgba(244,114,182,.1);color:#f472b6;border:1px solid rgba(244,114,182,.2)}
+
 .pc-rfe{background:rgba(201,168,76,.2);color:var(--gold);border:1px solid rgba(201,168,76,.35)}
+
 .pc-rfw{background:rgba(201,168,76,.1);color:var(--gold);border:1px solid rgba(201,168,76,.2)}
+
 .pc-miss{background:rgba(255,255,255,.04);color:var(--txt3);border:1px solid var(--bdr)}
+
 .pc-pend{background:rgba(255,255,255,.04);color:var(--txt3);border:1px solid var(--bdr);font-size:10px}
+
 .sc-row{display:flex;align-items:center;gap:10px;padding:8px 12px}
+
 .sc-row+.sc-row{border-top:1px solid var(--bdr)}
+
 .sc-key{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+
   letter-spacing:1px;text-transform:uppercase;color:var(--txt3);min-width:60px;flex-shrink:0}
+
 .sc-val{font-family:'Barlow Condensed',sans-serif;font-size:14px;flex:1}
+
 .sc-val.ok{color:#5de088}
+
 .sc-val.ng{color:#f87171}
+
 .sc-val.na{color:var(--txt3);font-size:12px}
 
 /* ── SAVE BADGE ───────────────────────────────── */
+
 .save-badge{position:fixed;bottom:16px;right:16px;z-index:200;
+
   background:var(--green2);color:#d1fae5;font-family:'Barlow Condensed',sans-serif;
+
   font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;
+
   opacity:0;transition:opacity .3s;pointer-events:none}
+
 .save-badge.show{opacity:1}
 
 /* ── OVERLAYS ─────────────────────────────────── */
+
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;
+
   display:none;align-items:flex-end;justify-content:center}
+
 .overlay.open{display:flex}
+
 .sheet{background:var(--bg2);border:1px solid var(--bdr2);border-radius:18px 18px 0 0;
+
   border-bottom:none;width:100%;max-width:500px;max-height:72vh;display:flex;flex-direction:column}
+
 .sh-handle{width:36px;height:4px;background:var(--bdr2);border-radius:2px;margin:12px auto 0;flex-shrink:0}
+
 .sh-head{padding:12px 16px 10px;flex-shrink:0}
+
 .sh-title{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700}
+
 .sh-sub{font-size:12px;color:var(--txt3);margin-top:2px}
+
 .sh-div{height:1px;background:var(--bdr);flex-shrink:0}
+
 .sh-list{overflow-y:auto;flex:1;padding:8px 0}
+
 .sh-item{display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;transition:background .1s}
+
 .sh-item:active{background:var(--bg3)}
+
 .sh-name{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:600}
+
 .sh-conf{font-size:11px;color:var(--txt3);margin-top:1px}
+
 .sh-close{margin:12px 16px;padding:12px;background:var(--bg3);border:1px solid var(--bdr);
+
   border-radius:var(--r);color:var(--txt2);font-family:'Barlow Condensed',sans-serif;
+
   font-size:15px;font-weight:600;text-align:center;cursor:pointer;flex-shrink:0;border:none}
+
 .sh-close:active{background:var(--bg4)}
 
 .seed-ov{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:400;
+
   display:none;align-items:center;justify-content:center;padding:20px}
+
 .seed-ov.open{display:flex}
+
 .seed-box{background:var(--bg2);border:1px solid var(--bdr2);border-radius:16px;
+
   padding:22px;width:260px;text-align:center}
+
 .seed-box h3{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;margin-bottom:4px}
+
 .seed-box p{font-size:12px;color:var(--txt3);margin-bottom:16px}
+
 .seed-box input{width:100%;background:var(--bg3);border:1px solid var(--bdr2);border-radius:var(--rs);
+
   padding:10px;font-size:24px;color:var(--txt);font-family:'Barlow Condensed',sans-serif;
+
   font-weight:700;text-align:center;outline:none;margin-bottom:14px}
+
 .seed-box input:focus{border-color:var(--gold)}
+
 .seed-btns{display:flex;gap:8px}
+
 .seed-btns button{flex:1;padding:10px;border:none;border-radius:var(--rs);
+
   font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700}
+
 .s-ok{background:var(--goldg);color:#000}
+
 .s-cancel{background:var(--bg3);color:var(--txt2)}
+
 </style>
+
 </head>
+
 <body>
 
 <!-- ═══════════════════════════════ LOGIN ════════════════════════════════ -->
+
 <div id="login-scr">
+
   <div class="l-logo">NBA</div>
+
   <div class="l-title">NBAngs</div>
+
   <div class="l-sub">Playoff Bracket · 2024-25</div>
+
   <div class="l-card">
+
     <h3>Iniciá sesión para jugar</h3>
+
     <input id="l-email" class="l-inp" type="email" placeholder="Email" autocomplete="email">
+
     <input id="l-pass"  class="l-inp" type="password" placeholder="Contraseña" autocomplete="current-password">
+
     <button class="btn-gold" onclick="doEmailLogin()">Entrar / Registrarse</button>
+
     <div class="divider"><span>o</span></div>
+
     <button class="btn-ghost" onclick="window.FB&&window.FB.loginGoogle()">
+
       <svg width="18" height="18" viewBox="0 0 48 48">
+
         <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.6 2.1 30.1 0 24 0 14.6 0 6.7 5.6 2.7 13.7l7.8 6C12.3 13.5 17.7 9.5 24 9.5z"/>
+
         <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-2.8-.4-4H24v7.6h12.5c-.5 2.7-2.1 5-4.4 6.5l7 5.4c4-3.7 6.3-9.2 6.3-15.5z"/>
+
         <path fill="#FBBC05" d="M10.5 28.3A14.6 14.6 0 0 1 9.5 24c0-1.5.3-2.9.7-4.3L2.4 13.7A24 24 0 0 0 0 24c0 3.9.9 7.5 2.7 10.7l7.8-6.4z"/>
+
         <path fill="#34A853" d="M24 48c6 0 11.1-2 14.8-5.4l-7-5.4c-2 1.3-4.5 2.1-7.8 2.1-6.3 0-11.6-4.2-13.5-10l-7.8 6.1C6.7 42.4 14.6 48 24 48z"/>
+
       </svg>
+
       Continuar con Google
+
     </button>
+
     <div id="auth-err"></div>
+
   </div>
+
 </div>
 
 <!-- ════════════════════════════════ APP ════════════════════════════════ -->
+
 <div id="app-scr">
+
   <div class="hdr">
+
     <div class="hdr-logo">NBA</div>
+
     <div>
+
       <div class="hdr-title">NBAngs</div>
+
       <div class="hdr-sub" id="mode-sub">Cargando…</div>
+
     </div>
+
     <div class="hdr-right">
+
       <span class="badge-admin" id="badge-admin" style="display:none">ADMIN</span>
+
       <div class="av" id="user-av">👤</div>
+
       <button class="btn-out" onclick="window.FB&&window.FB.logout()">Salir</button>
+
     </div>
+
   </div>
 
   <!-- MODE BAR -->
+
   <div class="mode-bar">
+
     <div class="mt" id="mt-r1"   onclick="setMode('r1')">🟢 Pred R1</div>
+
     <div class="mt" id="mt-r2"   onclick="setMode('r2')">🔵 Pred R2</div>
+
     <div class="mt" id="mt-r3"   onclick="setMode('r3')">🩷 Pred R3</div>
+
     <div class="mt" id="mt-rf"   onclick="setMode('rf')">🏆 Finals</div>
+
     <div class="mt" id="mt-real" onclick="setMode('real')" style="display:none">📊 Real</div>
+
     <div class="mt" id="mt-pts"  onclick="setMode('pts')">⭐ Puntos</div>
+
   </div>
 
   <!-- CONF TABS -->
+
   <div class="conf-bar" id="conf-bar">
+
     <div class="ct" id="ct-east"   onclick="setConf('east')">🏀 Este</div>
+
     <div class="ct" id="ct-west"   onclick="setConf('west')">🏀 Oeste</div>
+
     <div class="ct" id="ct-finals" onclick="setConf('finals')">🏆 Finals</div>
+
   </div>
 
   <!-- PAGES -->
+
   <div id="bracket-area">
+
     <div class="page" id="pg-east"></div>
+
     <div class="page" id="pg-west"></div>
+
     <div class="page" id="pg-finals"></div>
+
   </div>
+
   <div class="score-page" id="score-area" style="display:none"></div>
+
 </div>
 
 <!-- SAVE BADGE -->
+
 <div class="save-badge" id="save-badge">✓ Guardado</div>
 
 <!-- Team selector -->
+
 <div class="overlay" id="ov-team" onclick="ovBgClick(event,'ov-team')">
+
   <div class="sheet">
+
     <div class="sh-handle"></div>
+
     <div class="sh-head">
+
       <div class="sh-title" id="ov-title">Elegir equipo</div>
+
       <div class="sh-sub"   id="ov-sub"></div>
+
     </div>
+
     <div class="sh-div"></div>
+
     <div class="sh-list" id="ov-list"></div>
+
     <button class="sh-close" onclick="closeOv('ov-team')">Cancelar</button>
+
   </div>
+
 </div>
 
 <!-- Seed editor -->
+
 <div class="seed-ov" id="ov-seed">
+
   <div class="seed-box">
+
     <h3>Editar Seed</h3>
+
     <p id="sv-team-name">Equipo</p>
+
     <input id="sv-val" type="number" min="1" max="8" placeholder="1–8">
+
     <div class="seed-btns">
+
       <button class="s-cancel" onclick="closeOv('ov-seed')">Cancelar</button>
+
       <button class="s-ok" onclick="confirmSeed()">OK</button>
+
     </div>
+
   </div>
+
 </div>
 
 <script>
+
 /* ═══════════════════ DATA ═══════════════════════════════════════════════ */
 
 const ALL_TEAMS = [
+
   {id:'ATL',name:'Atlanta Hawks',     short:'Hawks',       conf:'East'},
+
   {id:'BOS',name:'Boston Celtics',    short:'Celtics',     conf:'East'},
+
   {id:'BKN',name:'Brooklyn Nets',     short:'Nets',        conf:'East'},
+
   {id:'CHA',name:'Charlotte Hornets', short:'Hornets',     conf:'East'},
+
   {id:'CHI',name:'Chicago Bulls',     short:'Bulls',       conf:'East'},
+
   {id:'CLE',name:'Cleveland Cavaliers',short:'Cavaliers',  conf:'East'},
+
   {id:'DET',name:'Detroit Pistons',   short:'Pistons',     conf:'East'},
+
   {id:'IND',name:'Indiana Pacers',    short:'Pacers',      conf:'East'},
+
   {id:'MIA',name:'Miami Heat',        short:'Heat',        conf:'East'},
+
   {id:'MIL',name:'Milwaukee Bucks',   short:'Bucks',       conf:'East'},
+
   {id:'NYK',name:'New York Knicks',   short:'Knicks',      conf:'East'},
+
   {id:'ORL',name:'Orlando Magic',     short:'Magic',       conf:'East'},
+
   {id:'PHI',name:'Philadelphia 76ers',short:'76ers',       conf:'East'},
+
   {id:'TOR',name:'Toronto Raptors',   short:'Raptors',     conf:'East'},
+
   {id:'WAS',name:'Washington Wizards',short:'Wizards',     conf:'East'},
+
   {id:'DAL',name:'Dallas Mavericks',  short:'Mavericks',   conf:'West'},
+
   {id:'DEN',name:'Denver Nuggets',    short:'Nuggets',     conf:'West'},
+
   {id:'GSW',name:'Golden State Warriors',short:'Warriors', conf:'West'},
+
   {id:'HOU',name:'Houston Rockets',   short:'Rockets',     conf:'West'},
+
   {id:'LAC',name:'LA Clippers',       short:'Clippers',    conf:'West'},
+
   {id:'LAL',name:'Los Angeles Lakers',short:'Lakers',      conf:'West'},
+
   {id:'MEM',name:'Memphis Grizzlies', short:'Grizzlies',   conf:'West'},
+
   {id:'MIN',name:'Minnesota Timberwolves',short:'Wolves',  conf:'West'},
+
   {id:'NOP',name:'New Orleans Pelicans',short:'Pelicans',  conf:'West'},
+
   {id:'OKC',name:'Oklahoma City Thunder',short:'Thunder',  conf:'West'},
+
   {id:'PHX',name:'Phoenix Suns',      short:'Suns',        conf:'West'},
+
   {id:'POR',name:'Portland Trail Blazers',short:'Blazers', conf:'West'},
+
   {id:'SAC',name:'Sacramento Kings',  short:'Kings',       conf:'West'},
+
   {id:'SAS',name:'San Antonio Spurs', short:'Spurs',       conf:'West'},
+
   {id:'UTA',name:'Utah Jazz',         short:'Jazz',        conf:'West'},
+
 ];
 
 const LOGO = id => {
+
   const map={ATL:'ATLANTAHAWKS',BOS:'BOSTONCELTICS',BKN:'BROOKLYNNETS',CHA:'CHARLOTTEHORNETS',
+
     CHI:'CHICAGOBULLS',CLE:'CLEVELANDCAVALIERS',DET:'DETROITPISTONS',IND:'INDIANAPACERS',
+
     MIA:'MIAMIHEAT',MIL:'MILWAUKEEBUCKS',NYK:'NEWYORKKNICKS',ORL:'ORLANDOMAGIC',
+
     PHI:'PHILADELPHIA76ERS',TOR:'TORONTORAPTORS',WAS:'WASHINGTONWIZARDS',
+
     DAL:'DALLASMAVERICKS',DEN:'DENVERNUGGETS',GSW:'GOLDENSTATEWARRIORS',HOU:'HOUSTONROCKETS',
+
     LAC:'LACLIPPERS',LAL:'LOSANGELESLAKERS',MEM:'MEMPHISGRIZZLIES',MIN:'MINNESOTATIMBERWOLVES',
+
     NOP:'NEWORLEANSPELICANS',OKC:'OKLAHOMACITYTHUNDER',PHX:'PHOENIXSUNS',POR:'PORTLANDTRAILBLAZERS',
+
     SAC:'SACRAMENTOKINGS',SAS:'SANANTONIOSPURS',UTA:'UTAHJAZZ'};
+
   return `LOGOS/${map[id]||id}.png`;
+
 };
 
 /* 
+
   REAL structure:
+
   {
+
     east: {
+
       r1: [ {t:[{id,seed,name,short,conf},null], w:[0,0]}, x4 ],
+
       r2: [ {t:[...],w:[0,0]}, x2 ],
+
       r3: [ {t:[...],w:[0,0]} ],
+
     },
+
     west: { same },
+
     finals: { t:[...], w:[0,0] }
+
   }
 
   PRED structure per predKey ('r1','r2','r3','rf'):
+
   {
+
     east: { r1:[{w:[0,0]}x4], r2:[{w:[0,0]}x2], r3:[{w:[0,0]}] },
+
     west: { same },
+
     finals: { w:[0,0] }
+
   }
+
   Teams always come from REAL for rendering.
+
   Only r1-pred covers r1 matchups; r2-pred covers r2 matchups; etc.
+
 */
 
 function emptyReal(){
+
   const c = () => ({
+
     r1: Array.from({length:4},()=>({t:[null,null],w:[0,0]})),
+
     r2: Array.from({length:2},()=>({t:[null,null],w:[0,0]})),
+
     r3: [{t:[null,null],w:[0,0]}],
+
   });
+
   return { east:c(), west:c(), finals:{t:[null,null],w:[0,0]} };
+
 }
+
 function emptyPred(){
+
   const c = () => ({
+
     r1: Array.from({length:4},()=>({w:[0,0]})),
+
     r2: Array.from({length:2},()=>({w:[0,0]})),
+
     r3: [{w:[0,0]}],
+
   });
+
   return { east:c(), west:c(), finals:{w:[0,0]} };
+
 }
 
 let REAL  = emptyReal();
+
 let PREDS = { r1:emptyPred(), r2:emptyPred(), r3:emptyPred(), rf:emptyPred() };
 
 let MODE = 'r1';
+
 let CONF = 'east';
+
 let selCtx  = null;  // {conf, round, matchIdx, slot}
+
 let seedCtx = null;  // same
+
 let saveTimer = null;
 
 /* ═══════════════════ AUTH / SETUP ══════════════════════════════════════ */
 
 function showLogin(){
+
   document.getElementById('login-scr').style.display='flex';
+
   document.getElementById('app-scr').style.display='none';
+
 }
+
 function showApp(user){
+
   document.getElementById('login-scr').style.display='none';
+
   document.getElementById('app-scr').style.display='block';
+
   const av = document.getElementById('user-av');
+
   if(user.photoURL) av.innerHTML=`<img src="${user.photoURL}">`;
+
   else av.textContent=(user.displayName||user.email||'?')[0].toUpperCase();
+
   document.getElementById('badge-admin').style.display=window.IS_ADMIN?'':'none';
+
   if(window.IS_ADMIN) document.getElementById('mt-real').style.display='';
+
 }
 
 function setAuthErr(msg){ document.getElementById('auth-err').textContent=msg; }
+
 function doEmailLogin(){
+
   const e=document.getElementById('l-email').value.trim();
+
   const p=document.getElementById('l-pass').value;
+
   if(!e||!p){setAuthErr('Ingresá email y contraseña');return;}
+
   if(window.FB) window.FB.loginEmail(e,p);
+
 }
 
 /* ═══════════════════ FIREBASE LISTENERS ════════════════════════════════ */
 
 function startListeners(uid){
+
   // Wait for FB to be ready
+
   const try_ = () => {
+
     if(!window.FB){ setTimeout(try_,300); return; }
 
     // Real results — shared, real-time
+
     window.FB.onShared('realResults', data => {
+
       if(data){ REAL = deepClone(data); }
+
       else { REAL = emptyReal(); }
+
       propagateReal();
+
       renderAll();
+
     });
 
     // User predictions
+
     ['r1','r2','r3','rf'].forEach(k => {
+
       window.FB.getUser(uid, 'pred_'+k).then(data => {
+
         if(data) PREDS[k] = deepClone(data);
+
         renderAll();
+
       });
+
     });
+
   };
+
   try_();
+
 }
 
 function scheduleSave(){
+
   clearTimeout(saveTimer);
+
   saveTimer = setTimeout(() => {
+
     const uid = window.FB_USER?.uid;
+
     if(!uid) return;
+
     if(MODE==='real'){
+
       window.FB.setShared('realResults', deepClone(REAL));
+
     } else {
+
       window.FB.setUser(uid, 'pred_'+MODE, deepClone(PREDS[MODE]));
+
     }
+
     flash();
+
   }, 1000);
+
 }
 
 function flash(){
+
   const b=document.getElementById('save-badge');
+
   b.classList.add('show');
+
   setTimeout(()=>b.classList.remove('show'),2000);
+
 }
 
 /* ═══════════════════ PROPAGATION ═══════════════════════════════════════ */
 
 // After REAL results change, propagate winners to next rounds
+
 function propagateReal(){
+
   ['east','west'].forEach(conf => {
+
     const c = REAL[conf];
+
     // R1 → R2
+
     for(let p=0;p<2;p++){
+
       const a=c.r1[p*2], b=c.r1[p*2+1], dst=c.r2[p];
+
       const wa=winner(a), wb=winner(b);
+
       const prev0=dst.t[0]?.id, prev1=dst.t[1]?.id;
+
       dst.t[0] = wa!==null ? {...a.t[wa]} : null;
+
       dst.t[1] = wb!==null ? {...b.t[wb]} : null;
+
       if(dst.t[0]?.id !== prev0) dst.w=[0,0];
+
       if(dst.t[1]?.id !== prev1) dst.w=[0,0];
+
     }
+
     // R2 → R3
+
     const wa=winner(c.r2[0]), wb=winner(c.r2[1]), d=c.r3[0];
+
     const p0=d.t[0]?.id, p1=d.t[1]?.id;
+
     d.t[0] = wa!==null ? {...c.r2[0].t[wa]} : null;
+
     d.t[1] = wb!==null ? {...c.r2[1].t[wb]} : null;
+
     if(d.t[0]?.id !== p0) d.w=[0,0];
+
     if(d.t[1]?.id !== p1) d.w=[0,0];
+
   });
+
   // R3 → Finals
+
   const ew=winner(REAL.east.r3[0]), ww=winner(REAL.west.r3[0]);
+
   const f=REAL.finals;
+
   const pe=f.t[0]?.id, pw=f.t[1]?.id;
+
   f.t[0] = ew!==null ? {...REAL.east.r3[0].t[ew]} : null;
+
   f.t[1] = ww!==null ? {...REAL.west.r3[0].t[ww]} : null;
+
   if(f.t[0]?.id !== pe) f.w=[0,0];
+
   if(f.t[1]?.id !== pw) f.w=[0,0];
+
 }
 
 function winner(m){ if(!m) return null; if(m.w[0]===4) return 0; if(m.w[1]===4) return 1; return null; }
 
 /* Which rounds has REAL fully started? (at least one team in that round) */
+
 function realRoundReady(conf, round){
+
   if(round==='r1') return REAL[conf].r1.some(m=>m.t[0]||m.t[1]);
+
   if(round==='r2') return REAL[conf].r2.some(m=>m.t[0]||m.t[1]);
+
   if(round==='r3') return REAL[conf].r3.some(m=>m.t[0]||m.t[1]);
+
   if(round==='finals') return !!(REAL.finals.t[0]||REAL.finals.t[1]);
+
   return false;
-}
-function anyRoundReady(round){
-  if(round==='r1') return realRoundReady('east','r1')||realRoundReady('west','r1');
-  if(round==='r2') return realRoundReady('east','r2')||realRoundReady('west','r2');
-  if(round==='r3') return realRoundReady('east','r3')||realRoundReady('west','r3');
-  if(round==='finals') return realRoundReady('east','finals')||realRoundReady('west','finals');
-  return false;
+
 }
 
+function anyRoundReady(round){
+
+  if(round==='r1') return realRoundReady('east','r1')||realRoundReady('west','r1');
+
+  if(round==='r2') return realRoundReady('east','r2')||realRoundReady('west','r2');
+
+  if(round==='r3') return realRoundReady('east','r3')||realRoundReady('west','r3');
+
+  if(round==='finals') return realRoundReady('east','finals')||realRoundReady('west','finals');
+
+  return false;
+
+}
 
 /* ═══════════════════ UI STATE ═══════════════════════════════════════════ */
 
 function setMode(m){
+
   MODE = m;
+
   const labels = {r1:'Predicción 1ª Ronda',r2:'Predicción 2ª Ronda',r3:'Predicción Conf. Finals',
+
                   rf:'Predicción NBA Finals',real:'Resultados Reales',pts:'Mi Puntuación'};
+
   document.getElementById('mode-sub').textContent = labels[m]||m;
 
   // active class
+
   ['r1','r2','r3','rf','real','pts'].forEach(k=>{
+
     const el=document.getElementById('mt-'+k);
+
     if(el) el.className='mt'+(k===m?' act-'+k:'');
+
   });
+
   if(!window.IS_ADMIN) document.getElementById('mt-real').style.display='none';
 
   const isScore=(m==='pts');
+
   document.getElementById('bracket-area').style.display=isScore?'none':'block';
+
   document.getElementById('score-area').style.display=isScore?'block':'none';
+
   document.getElementById('conf-bar').style.display=isScore?'none':'flex';
 
   if(m==='rf'){
+
     // Only show Finals tab
+
     ['east','west','finals'].forEach(c=>{
+
       document.getElementById('ct-'+c).style.display=(c==='finals')?'':'none';
+
     });
+
     setConf('finals');
+
+  } else if(m==='r1'||m==='r2'||m==='r3'){
+
+    // Hide Finals tab — Finals is integrated at the bottom of each conf page
+
+    ['east','west','finals'].forEach(c=>{
+
+      document.getElementById('ct-'+c).style.display=(c==='finals')?'none':'';
+
+    });
+
+    setConf(CONF==='finals'?'east':CONF);
+
   } else {
+
     ['east','west','finals'].forEach(c=>document.getElementById('ct-'+c).style.display='');
+
     // keep current conf or reset to east
+
     setConf(CONF==='finals'&&m!=='rf'?'east':CONF);
+
   }
 
   if(isScore) renderScore(); else renderAll();
+
 }
 
 function setConf(c){
+
   CONF=c;
+
   ['east','west','finals'].forEach(k=>{
+
     document.getElementById('pg-'+k).classList.toggle('active',k===c);
+
     document.getElementById('ct-'+k).className='ct'+(k===c?' act-'+k[0]:'');
+
   });
+
   renderPage(c);
+
 }
 
 /* ═══════════════════ RENDERING ══════════════════════════════════════════ */
@@ -698,558 +1275,1043 @@ function setConf(c){
 function renderAll(){ renderPage(CONF); }
 
 function renderPage(conf){
+
   const el=document.getElementById('pg-'+conf);
+
   if(!el) return;
+
   if(conf==='finals') el.innerHTML=buildFinalsPage();
+
   else el.innerHTML=buildConfPage(conf);
+
 }
 
 /* ── banners ── */
+
 function banner(cls,txt){
+
   return `<div class="banner ${cls}"><div class="banner-dot"></div>${txt}</div>`;
+
 }
 
 /* ── logo html ── */
+
 function logoHtml(id,sz=34){
+
   if(!id) return `<div class="logo-ph" style="width:${sz}px;height:${sz}px">?</div>`;
+
   return `<div class="logo-wrap" style="width:${sz}px;height:${sz}px">
+
     <img src="${LOGO(id)}" width="${sz}" height="${sz}" style="width:${sz-4}px;height:${sz-4}px"
+
       onerror="this.parentNode.innerHTML='<span style=\\'font-size:10px;color:var(--txt3)\\'>${id}</span>'">
+
   </div>`;
+
 }
 
 /* ── pips ── */
+
 function pipsHtml(w0,w1){
+
   let h='<div class="pip-row">';
+
   for(let i=0;i<4;i++) h+=`<div class="pip${i<w0?' ft':''}"></div>`;
+
   h+=`</div><span style="font-size:11px;color:var(--txt3);font-family:'Barlow Condensed',sans-serif">${w0}-${w1}</span><div class="pip-row">`;
+
   for(let i=0;i<4;i++) h+=`<div class="pip${i<w1?' fb':''}"></div>`;
+
   return h+'</div>';
+
 }
 
 function seriesBar(w0,w1){
+
   const win=w0===4?0:w1===4?1:null;
+
   if(win!==null) return `<div class="sbar"><span class="sres">FINAL 4-${win===0?w1:w0}</span></div>`;
+
   if(w0>0||w1>0) return `<div class="sbar">${pipsHtml(w0,w1)}</div>`;
+
   return '';
+
 }
 
 function lockNotice(msg){
+
   return `<div class="lock-notice"><div class="lock-ico">🔒</div><p>${msg}</p></div>`;
+
 }
 
 /* ═══════════════════ MATCH HTML BUILDERS ════════════════════════════════
 
   REAL mode: admin picks teams (R1 only), sets wins (all rounds).
+
   PRED modes (r1/r2/r3/rf): teams come from REAL, user sets predicted wins.
 
   Key rule: onclick attributes CANNOT have nested conflicting quotes.
+
   All interactive actions use data-* on wrapper + delegated listeners.
+
 ======================================================================= */
 
 // Single delegated listener on bracket-area, attached once at startup
+
 function bracketClick(e){
+
   const btn = e.target.closest('[data-action]');
+
   if(!btn) return;
+
   e.stopPropagation();
+
   const a = btn.dataset;
+
   if(a.action==='pick-team')  openTeamSel(a.conf, a.round, +a.idx, +a.slot);
+
   if(a.action==='pick-seed')  openSeedEdit(a.conf, a.round, +a.idx, +a.slot);
+
   if(a.action==='wins-minus') adjWins(a.src, a.conf, a.round, +a.idx, +a.slot, -1);
+
   if(a.action==='wins-plus')  adjWins(a.src, a.conf, a.round, +a.idx, +a.slot, +1);
+
 }
+
 function attachBracketEvents(){
+
   // No-op: listener is attached once at init
+
 }
 
 /* ── build conf page ── */
+
 function buildConfPage(conf){
+
   const isReal=(MODE==='real');
+
   const color=conf==='east'?'east':'west';
+
   const confLabel=conf==='east'?'Conferencia Este':'Conferencia Oeste';
+
   let h='';
 
   const bMap={
+
     r1:  ['bn-r1',  'Tu predicción — elegí ganadores de cada serie'],
+
     r2:  ['bn-r2',  'Tu predicción desde R2 — equipos que pasaron realmente'],
+
     r3:  ['bn-r3',  'Tu predicción — Finales de Conferencia'],
+
     rf:  ['bn-rf',  'Tu predicción — NBA Finals únicamente'],
+
     real:['bn-real','⚠ Admin — Cargá equipos y resultados reales'],
+
   };
+
   if(bMap[MODE]) h+=banner(bMap[MODE][0], bMap[MODE][1]);
+
   h+=`<div class="ch ${color}"><div class="ch-dot"></div>${confLabel}</div>`;
 
   if(isReal){
+
     // Admin: full bracket, can pick teams in R1, set wins in all rounds
+
     h+=`<div class="rl">Primera Ronda</div>`;
+
     for(let i=0;i<4;i++) h+=realMatchHtml(conf,'r1',i);
+
     h+=`<div class="rl">Semifinal de Conferencia</div>`;
+
     for(let i=0;i<2;i++) h+=realMatchHtml(conf,'r2',i);
+
     h+=`<div class="rl">Final de Conferencia</div>`;
+
     h+=realMatchHtml(conf,'r3',0);
 
   } else if(MODE==='r1'){
-    // Pred R1: predict R1 + R2 + R3 (teams from REAL, must be loaded)
+
+    // Pred R1: predict R1 + R2 + R3 + Finals
+
     h+=`<div class="rl">Primera Ronda</div>`;
+
     if(!realRoundReady(conf,'r1')){
+
       h+=lockNotice('El Admin aún no cargó los equipos de 1ª Ronda');
+
     } else {
+
       for(let i=0;i<4;i++) h+=predMatchHtml('r1',conf,'r1',i);
+
     }
+
     h+=`<div class="rl">Semifinal de Conferencia</div>`;
+
     if(!realRoundReady(conf,'r2')){
+
       h+=lockNotice('Se habilita cuando el Admin confirme los equipos de 2ª Ronda');
+
     } else {
+
       for(let i=0;i<2;i++) h+=predMatchHtml('r1',conf,'r2',i);
+
     }
+
     h+=`<div class="rl">Final de Conferencia</div>`;
+
     if(!realRoundReady(conf,'r3')){
+
       h+=lockNotice('Se habilita cuando el Admin confirme los equipos de Finales de Conf.');
+
     } else {
+
       h+=predMatchHtml('r1',conf,'r3',0);
+
     }
+
+    h+=buildFinalsSectionInConf('r1');
 
   } else if(MODE==='r2'){
-    // Pred R2: predict R2 + R3
+
+    // Pred R2: start from R2 + R3 + Finals
+
     h+=`<div class="rl">Semifinal de Conferencia</div>`;
+
     if(!realRoundReady(conf,'r2')){
+
       h+=lockNotice('El Admin aún no confirmó los equipos de 2ª Ronda');
+
     } else {
+
       for(let i=0;i<2;i++) h+=predMatchHtml('r2',conf,'r2',i);
-    }
-    h+=`<div class="rl">Final de Conferencia</div>`;
-    if(!realRoundReady(conf,'r3')){
-      h+=lockNotice('Se habilita cuando el Admin confirme los equipos de Finales de Conf.');
-    } else {
-      h+=predMatchHtml('r2',conf,'r3',0);
+
     }
 
-  } else if(MODE==='r3'){
-    // Pred R3: predict R3 only
     h+=`<div class="rl">Final de Conferencia</div>`;
+
     if(!realRoundReady(conf,'r3')){
-      h+=lockNotice('El Admin aún no confirmó los equipos de Finals de Conferencia');
+
+      h+=lockNotice('Se habilita cuando el Admin confirme los equipos de Finales de Conf.');
+
     } else {
-      h+=predMatchHtml('r3',conf,'r3',0);
+
+      h+=predMatchHtml('r2',conf,'r3',0);
+
     }
+
+    h+=buildFinalsSectionInConf('r2');
+
+  } else if(MODE==='r3'){
+
+    // Pred R3: start from Final de Conferencia + Finals
+
+    h+=`<div class="rl">Final de Conferencia</div>`;
+
+    if(!realRoundReady(conf,'r3')){
+
+      h+=lockNotice('El Admin aún no confirmó los equipos de Finals de Conferencia');
+
+    } else {
+
+      h+=predMatchHtml('r3',conf,'r3',0);
+
+    }
+
+    h+=buildFinalsSectionInConf('r3');
+
   }
+
   return h;
+
+}
+
+/* ── Finals NBA section embedded in conf pages ── */
+
+function buildFinalsSectionInConf(predKey){
+
+  let h='';
+
+  h+=`<div class="rl" style="margin-top:8px">🏆 Final NBA</div>`;
+
+  h+=`<div class="finals-hero" style="padding:14px 16px 10px">`;
+
+  h+=`<div class="finals-ico" style="font-size:36px">🏆</div>`;
+
+  h+=`<div class="finals-ttl" style="font-size:20px">NBA Finals</div>`;
+
+  h+=`<div class="finals-sub">The Championship · 2025</div>`;
+
+  h+=`</div>`;
+
+  const finalsReady=!!(REAL.finals.t[0]||REAL.finals.t[1]);
+
+  if(!finalsReady){
+
+    h+=lockNotice('Se habilita cuando el Admin confirme los finalistas');
+
+  } else {
+
+    // Champion banner if already decided
+
+    const pw=PREDS[predKey]?.finals?.w||[0,0];
+
+    const w=pw[0]===4?0:pw[1]===4?1:null;
+
+    if(w!==null){
+
+      const champTeam=REAL.finals.t[w];
+
+      if(champTeam){
+
+        h+=`<div class="champ-box"><div class="champ-lbl">🏆 Campeón NBA</div>`;
+
+        h+=`<div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:6px">`;
+
+        h+=`${logoHtml(champTeam.id,44)}<div class="champ-name">${champTeam.name}</div>`;
+
+        h+=`</div></div>`;
+
+      }
+
+    }
+
+    h+=finalPredHtml(predKey);
+
+  }
+
+  return h;
+
 }
 
 /* ── Real match card (admin only) ── */
+
 function realMatchHtml(conf, round, idx){
+
   const m = REAL[conf][round][idx];
+
   if(!m) return '';
+
   const w = winner(m);
+
   const hasBoth = !!(m.t[0] && m.t[1]);
+
   const isR1 = (round==='r1');
 
   const rows = [0,1].map(ti=>{
+
     const team = m.t[ti];
+
     const wins = m.w[ti];
+
     const isWin = (w===ti);
+
     const canPick = isR1 && !!window.IS_ADMIN;
 
     // logo
+
     const logo = logoHtml(team?.id, 34);
 
     // seed badge — tappable only in R1 for admin
+
     let seedEl;
+
     if(canPick && team){
+
       seedEl=`<span class="seed clickable" data-action="pick-seed" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}">${team.seed||'?'}</span>`;
+
     } else {
+
       seedEl=team?`<span class="seed">${team.seed||'?'}</span>`:`<span class="seed" style="opacity:.3">—</span>`;
+
     }
 
     // name
+
     let nameEl;
+
     if(canPick){
+
       nameEl=`<span class="tname${team?'':' empty'}">${team?team.short:'Elegir equipo'}</span><span class="tap-hint">TAP</span>`;
+
     } else {
+
       nameEl=team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
+
     }
 
     // wins control — admin sees in all rounds when both teams set
+
     let wctrl='';
+
     if(hasBoth && window.IS_ADMIN){
+
       wctrl=`<div class="wc">
+
         <button class="wb" data-action="wins-minus" data-src="real" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}">−</button>
+
         <span class="wn${wins===4?' four':''}">${wins}</span>
+
         <button class="wb" data-action="wins-plus" data-src="real" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}">+</button>
+
       </div>`;
+
     }
 
     // row — tappable to pick team (R1 admin)
+
     const rowData = canPick ? `data-action="pick-team" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}"` : '';
+
     return `<div class="team-row${isWin?' winner':''}${canPick?' tap':''}" ${rowData}>${logo}${seedEl}${nameEl}${wctrl}</div>`;
+
   }).join('');
 
   return `<div class="matchup${w!==null?' done':''}">${rows}${seriesBar(m.w[0],m.w[1])}</div>`;
+
 }
 
 /* ── Pred match card ── */
+
 // predKey: 'r1'|'r2'|'r3'|'rf'
+
 // Teams always from REAL[conf][round][idx], wins from PREDS[predKey][conf][round][idx]
+
 function predMatchHtml(predKey, conf, round, idx){
+
   const realM = REAL[conf][round][idx];
+
   if(!realM) return '';
+
   const t0=realM.t[0], t1=realM.t[1];
+
   const hasBoth = !!(t0&&t1);
+
   // Get pred wins
+
   const mdata = PREDS[predKey]?.[conf]?.[round]?.[idx];
+
   const pw = (mdata&&mdata.w) ? mdata.w : [0,0];
+
   const pwin = pw[0]===4?0:pw[1]===4?1:null;
 
   const rows = [0,1].map(ti=>{
+
     const team = ti===0?t0:t1;
+
     const wins = pw[ti];
+
     const isWin = (pwin===ti);
+
     const logo = logoHtml(team?.id,34);
+
     const seedEl = team?`<span class="seed">${team.seed||''}</span>`:`<span class="seed" style="opacity:.3">—</span>`;
+
     const nameEl = team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
+
     let wctrl='';
+
     if(hasBoth){
+
       wctrl=`<div class="wc">
+
         <button class="wb" data-action="wins-minus" data-src="${predKey}" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}">−</button>
+
         <span class="wn${wins===4?' four':''}">${wins}</span>
+
         <button class="wb" data-action="wins-plus" data-src="${predKey}" data-conf="${conf}" data-round="${round}" data-idx="${idx}" data-slot="${ti}">+</button>
+
       </div>`;
+
     }
+
     return `<div class="team-row${isWin?' winner':''}">${logo}${seedEl}${nameEl}${wctrl}</div>`;
+
   }).join('');
 
   return `<div class="matchup${pwin!==null?' done':''}">${rows}${seriesBar(pw[0],pw[1])}</div>`;
+
 }
 
 /* ── Finals page ── */
+
 function buildFinalsPage(){
+
   const isReal=(MODE==='real');
+
   let h='';
+
   const bMap={
+
     r1:  ['bn-r1', 'Tu predicción Finals (desde R1)'],
+
     r2:  ['bn-r2', 'Tu predicción Finals (desde R2)'],
+
     r3:  ['bn-r3', 'Tu predicción Finals (desde R3)'],
+
     rf:  ['bn-rf', 'Tu predicción — NBA Finals únicamente'],
+
     real:['bn-real','⚠ Admin — Resultados reales de la Gran Final'],
+
   };
+
   if(bMap[MODE]) h+=banner(bMap[MODE][0],bMap[MODE][1]);
 
   h+=`<div class="finals-hero">
+
     <div class="finals-ico">🏆</div>
+
     <div class="finals-ttl">NBA Finals</div>
+
     <div class="finals-sub">The Championship · 2025</div>
+
   </div>`;
 
   // Champion banner
+
   let champTeam=null;
+
   if(isReal){
+
     const w=winner(REAL.finals);
+
     if(w!==null) champTeam=REAL.finals.t[w];
+
   } else {
+
     const pw=PREDS[MODE]?.finals?.w||[0,0];
+
     const w=pw[0]===4?0:pw[1]===4?1:null;
+
     if(w!==null) champTeam=REAL.finals.t[w];
+
   }
+
   if(champTeam){
+
     h+=`<div class="champ-box"><div class="champ-lbl">🏆 Campeón NBA</div>
+
       <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:6px">
+
         ${logoHtml(champTeam.id,50)}<div class="champ-name">${champTeam.name}</div>
+
       </div></div>`;
+
   }
 
   h+=`<div class="rl">Gran Final</div>`;
 
   if(isReal){
+
     // Admin: sets wins, teams auto-propagated from R3 winners
+
     h+=finalRealHtml();
+
   } else {
+
     const finalsReady=!!(REAL.finals.t[0]||REAL.finals.t[1]);
+
     if(!finalsReady){
+
       h+=lockNotice('Se habilita cuando el Admin confirme los finalistas');
+
     } else {
+
       h+=finalPredHtml(MODE);
+
     }
+
   }
+
   return h;
+
 }
 
 function finalRealHtml(){
+
   const m=REAL.finals;
+
   const w=winner(m);
+
   const hasBoth=!!(m.t[0]&&m.t[1]);
 
   const rows=[0,1].map(ti=>{
+
     const team=m.t[ti], wins=m.w[ti], isWin=(w===ti);
+
     const logo=logoHtml(team?.id,34);
+
     const seedEl=team?`<span class="seed">${team.seed||''}</span>`:`<span class="seed" style="opacity:.3">—</span>`;
+
     const nameEl=team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
+
     let wctrl='';
+
     if(hasBoth&&window.IS_ADMIN){
+
       wctrl=`<div class="wc">
+
         <button class="wb" data-action="wins-minus" data-src="real" data-conf="finals" data-round="finals" data-idx="0" data-slot="${ti}">−</button>
+
         <span class="wn${wins===4?' four':''}">${wins}</span>
+
         <button class="wb" data-action="wins-plus" data-src="real" data-conf="finals" data-round="finals" data-idx="0" data-slot="${ti}">+</button>
+
       </div>`;
+
     }
+
     return `<div class="team-row${isWin?' winner':''}">${logo}${seedEl}${nameEl}${wctrl}</div>`;
+
   }).join('');
 
   return `<div class="matchup${w!==null?' done':''}">${rows}${seriesBar(m.w[0],m.w[1])}</div>`;
+
 }
 
 function finalPredHtml(predKey){
+
   const m=REAL.finals;
+
   const t0=m.t[0], t1=m.t[1], hasBoth=!!(t0&&t1);
+
   const pw=PREDS[predKey]?.finals?.w||[0,0];
+
   const pwin=pw[0]===4?0:pw[1]===4?1:null;
 
   const rows=[0,1].map(ti=>{
+
     const team=ti===0?t0:t1, wins=pw[ti], isWin=(pwin===ti);
+
     const logo=logoHtml(team?.id,34);
+
     const seedEl=team?`<span class="seed">${team.seed||''}</span>`:`<span class="seed" style="opacity:.3">—</span>`;
+
     const nameEl=team?`<span class="tname">${team.short}</span>`:`<span class="tname empty">Por definir</span>`;
+
     let wctrl='';
+
     if(hasBoth){
+
       wctrl=`<div class="wc">
+
         <button class="wb" data-action="wins-minus" data-src="${predKey}" data-conf="finals" data-round="finals" data-idx="0" data-slot="${ti}">−</button>
+
         <span class="wn${wins===4?' four':''}">${wins}</span>
+
         <button class="wb" data-action="wins-plus" data-src="${predKey}" data-conf="finals" data-round="finals" data-idx="0" data-slot="${ti}">+</button>
+
       </div>`;
+
     }
+
     return `<div class="team-row${isWin?' winner':''}">${logo}${seedEl}${nameEl}${wctrl}</div>`;
+
   }).join('');
 
   return `<div class="matchup${pwin!==null?' done':''}">${rows}${seriesBar(pw[0],pw[1])}</div>`;
+
 }
 
 /* ═══════════════════ WINS ADJUSTMENT ═══════════════════════════════════ */
 
 function adjWins(source, conf, round, idx, slot, delta){
+
   slot=+slot; delta=+delta; idx=+idx;
 
   if(source==='real'){
+
     let m = (conf==='finals') ? REAL.finals : REAL[conf][round][idx];
+
     if(!m) return;
+
     m.w[slot] = Math.max(0, Math.min(4, m.w[slot]+delta));
+
     if(m.w[slot]===4) m.w[1-slot] = Math.min(m.w[1-slot], 3);
+
     propagateReal();
+
   } else {
+
     // source is a predKey: 'r1','r2','r3','rf'
+
     let mdata;
+
     if(conf==='finals'){
+
       if(!PREDS[source].finals) PREDS[source].finals={w:[0,0]};
+
       mdata = PREDS[source].finals;
+
     } else {
+
       mdata = PREDS[source]?.[conf]?.[round]?.[idx];
+
     }
+
     if(!mdata){ console.warn('adjWins: no mdata',source,conf,round,idx); return; }
+
     if(!mdata.w) mdata.w=[0,0];
+
     mdata.w[slot] = Math.max(0, Math.min(4, mdata.w[slot]+delta));
+
     if(mdata.w[slot]===4) mdata.w[1-slot] = Math.min(mdata.w[1-slot], 3);
+
   }
+
   renderAll();
+
   scheduleSave();
+
 }
 
 /* ═══════════════════ TEAM SELECTOR (admin, real r1) ════════════════════ */
 
 function openTeamSel(conf,round,idx,slot){
+
   if(!window.IS_ADMIN) return;
+
   selCtx={conf,round,idx:+idx,slot:+slot};
+
   const confLabel=conf==='east'?'East':'West';
+
   const teams=ALL_TEAMS.filter(t=>t.conf===confLabel);
+
   document.getElementById('ov-title').textContent='Elegir equipo (Admin)';
+
   document.getElementById('ov-sub').textContent=`Conferencia ${conf==='east'?'Este':'Oeste'} · Serie ${+idx+1} · Slot ${slot+1}`;
+
   document.getElementById('ov-list').innerHTML=teams.map(t=>
+
     `<div class="sh-item" onclick="pickTeam('${t.id}')">
+
       ${logoHtml(t.id,30)}
+
       <div><div class="sh-name">${t.name}</div><div class="sh-conf">#${t.id}</div></div>
+
     </div>`
+
   ).join('');
+
   document.getElementById('ov-team').classList.add('open');
+
 }
 
 function pickTeam(id){
+
   if(!selCtx) return;
+
   const {conf,round,idx,slot}=selCtx;
+
   const m=REAL[conf][round][idx];
+
   const prev=m.t[slot];
+
   const teamInfo=ALL_TEAMS.find(t=>t.id===id);
+
   m.t[slot]={id, name:teamInfo.name, short:teamInfo.short, conf:teamInfo.conf, seed:prev?.seed||slot+1};
+
   m.w=[0,0];
+
   propagateReal();
+
   closeOv('ov-team');
+
   renderAll();
+
   scheduleSave();
+
 }
 
 /* ═══════════════════ SEED EDITOR ════════════════════════════════════════ */
 
 function openSeedEdit(conf,round,idx,slot){
+
   if(!window.IS_ADMIN) return;
+
   const m=REAL[conf][round][idx];
+
   const team=m.t[+slot];
+
   if(!team) return;
+
   seedCtx={conf,round,idx:+idx,slot:+slot};
+
   document.getElementById('sv-team-name').textContent=team.name;
+
   document.getElementById('sv-val').value=team.seed||'';
+
   document.getElementById('ov-seed').classList.add('open');
+
   setTimeout(()=>document.getElementById('sv-val').focus(),80);
+
 }
 
 function confirmSeed(){
+
   if(!seedCtx) return;
+
   const v=parseInt(document.getElementById('sv-val').value,10);
+
   if(!isNaN(v)&&v>=1&&v<=16){
+
     const {conf,round,idx,slot}=seedCtx;
+
     const m=REAL[conf][round][idx];
+
     if(m.t[slot]) m.t[slot].seed=v;
+
     renderAll();
+
     scheduleSave();
+
   }
+
   closeOv('ov-seed');
+
 }
 
 function closeOv(id){
+
   document.getElementById(id).classList.remove('open');
+
   if(id==='ov-team') selCtx=null;
+
   if(id==='ov-seed') seedCtx=null;
+
 }
 
 function ovBgClick(e,id){
+
   if(e.target===document.getElementById(id)) closeOv(id);
+
 }
 
 /* ═══════════════════ SCORE PAGE ═════════════════════════════════════════ */
 
 /*
+
   Points system:
+
   - predKey r1 covers r1,r2,r3,finals:
+
       exact (winner+games): r1=4, r2=3, r3=2, finals=1
+
       winner only:          r1=2, r2=1, r3=1, finals=1
+
   - predKey r2 covers r2,r3,finals
+
   - predKey r3 covers r3,finals
+
   - predKey rf covers finals only
+
   Each round can only be scored once the real winner is known.
+
 */
 
 const PTS = {
+
   r1: { r1:[4,2], r2:[3,1], r3:[2,1], finals:[1,1] },
+
   r2: {           r2:[3,1], r3:[2,1], finals:[1,1] },
+
   r3: {                     r3:[2,1], finals:[1,1] },
+
   rf: {                               finals:[1,1] },
+
 };
 
 function scoreMatch(predKey, conf, round, idx){
+
   // realMatch
+
   let realM;
+
   if(conf==='finals') realM=REAL.finals;
+
   else realM=REAL[conf][round][idx];
+
   if(!realM) return {status:'no_real'};
+
   const rw=winner(realM);
+
   if(rw===null) return {status:'pending'};
 
   const ptsArr=PTS[predKey]?.[round];
+
   if(!ptsArr) return {status:'na'}; // this predKey doesn't cover this round
 
   // pred winner
+
   let pw, pgames;
+
   let predMdata;
+
   if(conf==='finals') predMdata=PREDS[predKey].finals;
+
   else predMdata=PREDS[predKey]?.[conf]?.[round]?.[idx];
+
   if(!predMdata||!predMdata.w) return {status:'no_pred'};
+
   const pdw=predMdata.w;
+
   const pwinner=pdw[0]===4?0:pdw[1]===4?1:null;
+
   if(pwinner===null) return {status:'no_pred'};
 
   // get pred winner team id
+
   let predWinnerId;
+
   if(predKey==='r1'){
+
     // For r1 pred: if round is r1, teams are from REAL.r1 (same teams)
+
     // teams for all rounds come from REAL
+
     if(conf==='finals') predWinnerId=realM.t[pwinner]?.id;
+
     else predWinnerId=realM.t[pwinner]?.id;
+
   } else {
+
     if(conf==='finals') predWinnerId=REAL.finals.t[pwinner]?.id;
+
     else predWinnerId=REAL[conf][round][idx]?.t[pwinner]?.id;
+
   }
+
   if(!predWinnerId) return {status:'no_pred'};
 
   const realWinnerId=realM.t[rw].id;
+
   if(predWinnerId!==realWinnerId) return {status:'miss',pts:0,realW:realM.t[rw].short};
 
   const realGames=4+realM.w[1-rw];
+
   const predGames=4+pdw[1-pwinner];
+
   const exact=(realGames===predGames);
+
   return {status:exact?'exact':'winner', pts:exact?ptsArr[0]:ptsArr[1], realW:realM.t[rw].short};
+
 }
 
 function renderScore(){
+
   const el=document.getElementById('score-area');
 
   const allPaths=[];
+
   ['east','west'].forEach(conf=>{
+
     for(let i=0;i<4;i++) allPaths.push({conf,round:'r1',idx:i,label:`${conf==='east'?'Este':'Oeste'} R1 #${i+1}`});
+
     for(let i=0;i<2;i++) allPaths.push({conf,round:'r2',idx:i,label:`${conf==='east'?'Este':'Oeste'} Semis #${i+1}`});
+
     allPaths.push({conf,round:'r3',idx:0,label:`${conf==='east'?'Este':'Oeste'} Final Conf.`});
+
   });
+
   allPaths.push({conf:'finals',round:'finals',idx:0,label:'NBA Finals'});
 
   let total=0;
+
   const byRound={r1:[],r2:[],r3:[],finals:[]};
 
   allPaths.forEach(p=>{
+
     const {conf,round,idx,label}=p;
+
     const scores={};
+
     let matchPts=0;
+
     Object.keys(PTS).forEach(pk=>{
+
       if(!PTS[pk][round]) return;
+
       const r=scoreMatch(pk,conf,round,idx);
+
       scores[pk]=r;
+
       if(r.pts) matchPts+=r.pts;
+
     });
+
     total+=matchPts;
+
     byRound[round].push({conf,round,idx,label,scores,matchPts});
+
   });
 
   const rw=winner(REAL.finals)||winner(REAL.east.r3[0])||winner(REAL.east.r1[0]);
+
   const hasAny=allPaths.some(({conf,round,idx})=>{
+
     const m=conf==='finals'?REAL.finals:REAL[conf][round][idx];
+
     return winner(m)!==null;
+
   });
 
   if(!hasAny){
+
     el.innerHTML=`<div class="score-hero"><div class="score-n">—</div><div class="score-lbl">Esperando resultados reales del Admin</div></div>`;
+
     return;
+
   }
 
   const roundNames={r1:'Primera Ronda',r2:'Semifinal de Conf.',r3:'Final de Conf.',finals:'NBA Finals'};
+
   let h=`<div class="score-hero"><div class="score-n">${total}</div><div class="score-lbl">Puntos Totales</div></div>`;
 
   ['r1','r2','r3','finals'].forEach(round=>{
+
     if(!byRound[round].length) return;
+
     h+=`<div class="sc-sec-ttl">${roundNames[round]}</div>`;
+
     byRound[round].forEach(item=>{
+
       let maxPts=0; Object.values(item.scores).forEach(s=>{if(s.pts) maxPts=Math.max(maxPts,s.pts);});
+
       const chipCls=item.matchPts>0?`pc-${round[0]}e`:'pc-miss';
+
       h+=`<div class="sc-card">
+
         <div class="sc-head"><div class="sc-lbl">${item.label}</div>
+
           <span class="pts-chip ${chipCls}">${item.matchPts} pts</span></div>`;
+
       Object.entries(item.scores).forEach(([pk,r])=>{
+
         const pkName={r1:'Pred R1',r2:'Pred R2',r3:'Pred R3',rf:'Pred Finals'}[pk];
+
         let val,cls;
+
         if(r.status==='pending'||r.status==='no_pred'){ val='—'; cls='na'; }
+
         else if(r.status==='miss'){ val=`✗ Falló (ganó ${r.realW})`; cls='ng'; }
+
         else if(r.status==='exact'){ val=`✓ Exacto +${r.pts}pts`; cls='ok'; }
+
         else if(r.status==='winner'){ val=`✓ Ganador +${r.pts}pts`; cls='ok'; }
+
         else{ val='—'; cls='na'; }
+
         h+=`<div class="sc-row"><div class="sc-key">${pkName}</div><div class="sc-val ${cls}">${val}</div></div>`;
+
       });
+
       h+='</div>';
+
     });
+
   });
 
   el.innerHTML=h;
+
 }
 
 /* ═══════════════════ UTILS ══════════════════════════════════════════════ */
@@ -1259,13 +2321,21 @@ function deepClone(x){ return JSON.parse(JSON.stringify(x)); }
 /* ═══════════════════ INIT ═══════════════════════════════════════════════ */
 
 // Attach single delegated listener for bracket interactions
+
 document.getElementById('bracket-area').addEventListener('click', bracketClick);
 
 // Start in r1 mode, east conf
+
 setTimeout(()=>{
+
   setMode('r1');
+
   setConf('east');
+
 },100);
+
 </script>
+
 </body>
+
 </html>
