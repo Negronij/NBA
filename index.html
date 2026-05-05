@@ -30,11 +30,17 @@
   const db   = getDatabase(app);
   const ADMIN = 'juan.ignacio.negroni@gmail.com';
 
+  // ── FIX: separar el listener de auth del listener de datos ──
+  // onAuthStateChanged solo maneja login/logout
   onAuthStateChanged(auth, user => {
     window.FB_USER  = user || null;
     window.IS_ADMIN = user ? user.email === ADMIN : false;
-    if (user) { showApp(user); loadAll(user.uid); }
-    else       { showLogin(); }
+    if (user) {
+      showApp(user);
+      loadAll(user.uid);
+    } else {
+      showLogin();
+    }
   });
 
   window.FB = {
@@ -44,9 +50,13 @@
     loginGoogle: ()    => signInWithPopup(auth, new GoogleAuthProvider())
                           .catch(err=>setAuthErr(err.message)),
     logout     : ()    => signOut(auth),
+
+    // ── FIX: setShared ahora devuelve la promesa para poder encadenar .then/.catch ──
     setShared  : (k,v) => set(ref(db,`shared/${k}`), v),
     setUser    : (uid,k,v) => set(ref(db,`users/${uid}/${k}`), v),
     getUser    : (uid,k)   => get(ref(db,`users/${uid}/${k}`)).then(s=>s.exists()?s.val():null),
+
+    // ── FIX: onShared devuelve la función unsubscribe de Firebase ──
     onShared   : (k,cb)    => onValue(ref(db,`shared/${k}`), s=>cb(s.exists()?s.val():null)),
     getShared  : (k)       => get(ref(db,`shared/${k}`)).then(s=>s.exists()?s.val():null),
   };
@@ -186,14 +196,12 @@ button{font-family:inherit;cursor:pointer}
   overflow:hidden;margin-bottom:10px;transition:border-color .15s}
 .matchup.done{border-color:var(--bdr2)}
 
-/* FIX: team-row nunca tiene cursor pointer por defecto */
 .team-row{display:flex;align-items:center;padding:10px 12px;gap:10px;
   transition:background .15s;min-height:52px}
 .team-row:first-child{border-bottom:1px solid var(--bdr)}
 .team-row.winner{background:rgba(34,197,94,.1)}
 .team-row.winner .seed{background:rgba(34,197,94,.25);color:#9effc0}
 
-/* FIX: solo el área del equipo (logo+seed+nombre) es tappable */
 .team-tap-area{display:flex;align-items:center;gap:10px;flex:1;
   cursor:pointer;min-width:0;padding:4px 0}
 .team-tap-area:active .tname{opacity:.7}
@@ -220,7 +228,6 @@ button{font-family:inherit;cursor:pointer}
   border-radius:var(--rs);overflow:hidden;flex-shrink:0}
 .wb{width:34px;height:34px;background:transparent;border:none;color:var(--txt2);
   font-size:20px;display:flex;align-items:center;justify-content:center;line-height:1;
-  /* FIX: stop propagation implícito con z-index y position */
   position:relative;z-index:2}
 .wb:active{background:var(--bg4);color:var(--txt)}
 .wn{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;
@@ -243,6 +250,12 @@ button{font-family:inherit;cursor:pointer}
   padding:20px;text-align:center;margin-bottom:10px;color:var(--txt3)}
 .lock-ico{font-size:24px;margin-bottom:8px}
 .lock-notice p{font-size:13px;line-height:1.5}
+
+/* ── LOADING ── */
+.loading-state{text-align:center;padding:40px 20px;color:var(--txt3)}
+.loading-state .spin{font-size:28px;display:inline-block;animation:spin 1s linear infinite;margin-bottom:12px}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.loading-state p{font-size:13px}
 
 /* ── FINALS ── */
 .finals-hero{text-align:center;padding:22px 16px 18px}
@@ -486,7 +499,6 @@ const LOGO_MAP = {
   POR:'PORTLANDTRAILBLAZERS',SAC:'SACRAMENTOKINGS',SAS:'SANANTONIOSPURS',UTA:'UTAHJAZZ',
 };
 
-// Points: [exact_series_result, correct_winner_only]
 const PTS = { r1:[4,2], r2:[3,1], r3:[2,1], rf:[1,1] };
 
 // ════════════════════════════════════════════════════════
@@ -521,6 +533,9 @@ function freshPRED(){
 let REAL = freshREAL();
 let PREDS = { r1: freshPRED(), r2: freshPRED(), r3: freshPRED(), rf: freshPRED() };
 
+// ── FIX: flag para saber si ya cargaron los datos del admin ──
+let REAL_LOADED = false;
+
 let MODE = 'r1';
 let CONF = 'east';
 let SEL_CTX  = null;
@@ -542,6 +557,8 @@ function doEmailLogin(){
 function showLogin(){
   document.getElementById('login-scr').style.display='flex';
   document.getElementById('app-scr').style.display='none';
+  // Resetear flags al hacer logout
+  REAL_LOADED = false;
 }
 
 function showApp(user){
@@ -552,37 +569,63 @@ function showApp(user){
   else av.textContent=(user.displayName||user.email||'?')[0].toUpperCase();
   document.getElementById('badge-admin').style.display=window.IS_ADMIN?'':'none';
   document.getElementById('mt-admin').style.display=window.IS_ADMIN?'':'none';
+  // Mostrar estado de carga inicial
+  showLoadingState();
   setMode('r1');
 }
 
-// ── LOAD: primero REAL compartido, luego predicciones del usuario ──
-function loadAll(uid){
-  const run=()=>{
-    if(!window.FB){ setTimeout(run,300); return; }
+// ── FIX: mostrar estado de carga mientras llegan los datos ──
+function showLoadingState(){
+  ['east','west','finals'].forEach(conf=>{
+    const el=document.getElementById('pg-'+conf);
+    if(el) el.innerHTML=`<div class="loading-state"><div class="spin">⏳</div><p>Cargando datos...</p></div>`;
+  });
+}
 
-    // Escuchar cambios en REAL en tiempo real (para todos los usuarios)
-    window.FB.onShared('adminResults', d=>{
-      if(d){
-        // Merge cuidadoso: solo actualizar si hay datos válidos
+// ════════════════════════════════════════════════════════
+// FIX PRINCIPAL: loadAll con lógica robusta
+// ════════════════════════════════════════════════════════
+function loadAll(uid){
+  const run = () => {
+    if(!window.FB){ setTimeout(run, 300); return; }
+
+    // ── 1. Escuchar cambios en adminResults EN TIEMPO REAL ──
+    // Esto funciona para TODOS los usuarios (admin y no admin)
+    // Firebase onValue dispara inmediatamente con el valor actual
+    // y luego cada vez que cambia
+    window.FB.onShared('adminResults', d => {
+      console.log('[NBAngs] adminResults recibido:', d ? 'con datos' : 'vacío/null');
+
+      if(d && typeof d === 'object'){
         REAL = deepMerge(freshREAL(), d);
         propagateREAL();
+      } else {
+        // No hay datos del admin todavía — resetear a fresco
+        REAL = freshREAL();
       }
+
+      REAL_LOADED = true;
+
+      // Re-renderizar toda la vista con los nuevos datos
       renderAll();
     });
 
-    // Cargar predicciones del usuario (una sola vez al inicio)
-    const keys=['r1','r2','r3','rf'];
-    keys.forEach(k=>{
-      window.FB.getUser(uid,'pred_'+k).then(d=>{
+    // ── 2. Cargar predicciones del usuario (lectura única) ──
+    const predKeys = ['r1','r2','r3','rf'];
+    predKeys.forEach(k => {
+      window.FB.getUser(uid, 'pred_' + k).then(d => {
         if(d) PREDS[k] = deepMerge(freshPRED(), d);
-        renderAll();
+        // Renderizar solo si ya llegaron los datos del admin
+        if(REAL_LOADED) renderAll();
+      }).catch(err => {
+        console.error('[NBAngs] Error cargando pred_'+k+':', err);
       });
     });
   };
   run();
 }
 
-// Merge profundo: rellena con defaults si faltan claves
+// ── MERGE PROFUNDO ──
 function deepMerge(base, override){
   if(!override) return base;
   const result = deepClone(base);
@@ -601,31 +644,40 @@ function deepMerge(base, override){
   return result;
 }
 
-// ── SAVE ──
+// ════════════════════════════════════════════════════════
+// SAVE
+// ════════════════════════════════════════════════════════
 function scheduleSave(){
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(doSave, 1000);
+  saveTimer = setTimeout(doSave, 800);
 }
 
 function doSave(){
-  const uid=window.FB_USER?.uid;
-  if(!uid||!window.FB) return;
+  const uid = window.FB_USER?.uid;
+  if(!uid || !window.FB) return;
 
-  if(MODE==='admin'){
+  if(MODE === 'admin'){
+    // ── FIX: guardar inmediatamente sin delay, con feedback ──
     window.FB.setShared('adminResults', deepClone(REAL))
-      .then(()=>showToast())
-      .catch(e=>console.error('Save REAL error:',e));
+      .then(() => {
+        console.log('[NBAngs] adminResults guardado en Firebase OK');
+        showToast();
+      })
+      .catch(e => {
+        console.error('[NBAngs] Error guardando adminResults:', e);
+        alert('Error al guardar: ' + e.message);
+      });
   } else {
-    window.FB.setUser(uid,'pred_'+MODE, deepClone(PREDS[MODE]))
-      .then(()=>showToast())
-      .catch(e=>console.error('Save PRED error:',e));
+    window.FB.setUser(uid, 'pred_' + MODE, deepClone(PREDS[MODE]))
+      .then(() => showToast())
+      .catch(e => console.error('[NBAngs] Error guardando predicción:', e));
   }
 }
 
 function showToast(){
-  const t=document.getElementById('toast');
+  const t = document.getElementById('toast');
   t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2000);
+  setTimeout(() => t.classList.remove('show'), 2000);
 }
 
 function deepClone(x){ return JSON.parse(JSON.stringify(x)); }
@@ -738,8 +790,6 @@ function banner(cls,txt){
 
 // ════════════════════════════════════════════════════════
 // ADMIN MATCH CARD
-// FIX: el onclick de team selection SOLO está en el área del equipo,
-//      NO en los botones +/- ni en el seed
 // ════════════════════════════════════════════════════════
 function adminMatchHtml(conf,round,idx){
   const m=conf==='finals'?REAL.finals:REAL[conf]?.[round]?.[idx];
@@ -752,7 +802,6 @@ function adminMatchHtml(conf,round,idx){
     const team=m.t[ti], wins=m.w[ti], isWin=w===ti;
     const logo=logoHtml(team?.id,34);
 
-    // FIX: seed tiene su propio onclick con stopPropagation
     const seedEl=team
       ? `<span class="seed editable" onclick="event.stopPropagation();openSeedEdit('${conf}','${round}',${idx},${ti})">${team.seed||'?'}</span>`
       : `<span class="seed" style="opacity:.3">—</span>`;
@@ -761,7 +810,6 @@ function adminMatchHtml(conf,round,idx){
       ? `<span class="tname">${team.short}</span>`
       : `<span class="tname empty">${isR1?'Tap para elegir equipo':'Por definir'}</span>`;
 
-    // FIX: el tap para elegir equipo solo activa cuando es R1 y se toca el área del equipo
     let teamArea;
     if(isR1){
       teamArea=`<div class="team-tap-area" onclick="openTeamSel('${conf}','${round}',${idx},${ti})">
@@ -774,7 +822,6 @@ function adminMatchHtml(conf,round,idx){
       </div>`;
     }
 
-    // FIX: los botones +/- tienen onclick con stopPropagation
     const wctrl=hasBoth
       ? `<div class="wc" onclick="event.stopPropagation()">
           <button class="wb" onclick="adjWins('${conf}','${round}',${idx},${ti},-1,'admin')">−</button>
@@ -1000,6 +1047,13 @@ function renderAll(){
 function renderPage(conf){
   const el=document.getElementById('pg-'+conf);
   if(!el||!el.classList.contains('active')) return;
+
+  // ── FIX: Si los datos del admin no llegaron aún, mostrar loading ──
+  if(!REAL_LOADED && MODE !== 'admin'){
+    el.innerHTML=`<div class="loading-state"><div class="spin">⏳</div><p>Cargando datos...</p></div>`;
+    return;
+  }
+
   if(conf==='finals'){
     if(MODE==='admin') el.innerHTML=buildAdminFinalsPage();
     else el.innerHTML=buildFinalsPage(MODE);
@@ -1155,7 +1209,7 @@ function renderScore(){
       <div class="sc-lbl">TUS PUNTOS</div><div class="sc-num">—</div>
       <div class="sc-sub">Esperando resultados del Administrador</div>
     </div>
-    <div style="text-align:center;padding:40px 20px;color:var(--txt3);background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r);margin:0 16px">
+    <div style="text-align:center;padding:40px 20px;color:var(--txt3);background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--r)">
       <div style="font-size:32px;margin-bottom:12px">📊</div>
       <div>El Administrador aún no cargó resultados</div>
     </div>`;
@@ -1235,5 +1289,37 @@ function renderScore(){
 // ════════════════════════════════════════════════════════
 propagateREAL();
 </script>
+
+<!-- ════════════════════════════════════════════════════
+  IMPORTANTE: Reglas de Firebase Realtime Database
+  
+  Para que todos los usuarios puedan LEER los datos del admin,
+  las reglas de tu Firebase deben ser así:
+  
+  {
+    "rules": {
+      "shared": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.token.email == 'juan.ignacio.negroni@gmail.com'"
+      },
+      "users": {
+        "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    }
+  }
+  
+  Si las reglas son más restrictivas que esto, otros usuarios
+  no podrán leer "shared/adminResults" y verán todo vacío.
+  
+  Para verificar/cambiar las reglas:
+  1. Ir a https://console.firebase.google.com
+  2. Seleccionar el proyecto nbangs-a10fc
+  3. Realtime Database → Rules
+  4. Pegar las reglas de arriba y publicar
+════════════════════════════════════════════════════ -->
+
 </body>
 </html>
