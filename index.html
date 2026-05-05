@@ -526,7 +526,6 @@ let CONF = 'east';
 let SEL_CTX  = null;
 let SEED_CTX = null;
 let saveTimer = null;
-let isSaving  = false;   // bloquea el listener mientras el admin está guardando
 
 // ════════════════════════════════════════════════════════
 // AUTH / LOAD
@@ -561,12 +560,10 @@ function loadAll(uid){
   const run=()=>{
     if(!window.FB){ setTimeout(run,300); return; }
 
-    // Escuchar cambios en REAL en tiempo real.
-    // Si ES el admin quien acaba de guardar (isSaving=true), ignoramos el echo
-    // para no re-renderizar y "saltar" la pantalla.
+    // Escuchar cambios en REAL en tiempo real (para todos los usuarios)
     window.FB.onShared('adminResults', d=>{
-      if(isSaving) return;   // es nuestro propio echo, ignorar
       if(d){
+        // Merge cuidadoso: solo actualizar si hay datos válidos
         REAL = deepMerge(freshREAL(), d);
         propagateREAL();
       }
@@ -615,10 +612,9 @@ function doSave(){
   if(!uid||!window.FB) return;
 
   if(MODE==='admin'){
-    isSaving = true;
     window.FB.setShared('adminResults', deepClone(REAL))
-      .then(()=>{ showToast(); setTimeout(()=>{ isSaving=false; }, 2000); })
-      .catch(e=>{ console.error('Save REAL error:',e); isSaving=false; });
+      .then(()=>showToast())
+      .catch(e=>console.error('Save REAL error:',e));
   } else {
     window.FB.setUser(uid,'pred_'+MODE, deepClone(PREDS[MODE]))
       .then(()=>showToast())
@@ -1241,4 +1237,3 @@ propagateREAL();
 </script>
 </body>
 </html>
-
