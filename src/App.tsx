@@ -680,56 +680,72 @@ function ConferenceView({
   const isR2Ready = B.r2.every(m => m.t[0] && m.t[1]);
   const isR3Ready = B.r3.every(m => m.t[0] && m.t[1]);
 
+  const showR1 = mode === 'r1' || mode === 'admin';
+  const showR2 = mode === 'r1' || mode === 'r2' || mode === 'admin';
+  const showR3 = mode === 'r1' || mode === 'r2' || mode === 'r3' || mode === 'admin';
+
   return (
     <div className="space-y-4">
-      <SectionLabel>Primera Ronda</SectionLabel>
-      {!isR1Ready && !isAdminMode && (
-        <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500 flex flex-col items-center gap-3">
-          <Lock className="w-8 h-8 opacity-20" />
-          <p className="font-['Barlow_Condensed'] font-bold text-sm uppercase tracking-widest leading-tight">
-            El Administrador aún no cargó <br/> todos los equipos de la R1
-          </p>
-        </div>
+      {showR1 && (
+        <>
+          <SectionLabel>Primera Ronda</SectionLabel>
+          {!isR1Ready && !isAdminMode && !isAdmin && (
+            <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500 flex flex-col items-center gap-3">
+              <Lock className="w-8 h-8 opacity-20" />
+              <p className="font-['Barlow_Condensed'] font-bold text-sm uppercase tracking-widest leading-tight">
+                El Administrador aún no cargó <br/> todos los equipos de la R1
+              </p>
+            </div>
+          )}
+          <div className="space-y-2">
+            {B.r1.map((m, i) => (
+              (isAdminMode || (m.t[0] && m.t[1])) && (
+                <Matchup 
+                  key={`r1-${i}-${m.t[0]?.id}-${m.t[1]?.id}`} conf={c} round="r1" idx={i} m={m} pm={P.r1[i]} 
+                  onAdjust={onAdjust} isAdminMode={isAdminMode} onPick={onPick} onSeed={onSeed} 
+                />
+              )
+            ))}
+          </div>
+        </>
       )}
-      <div className="space-y-2">
-        {B.r1.map((m, i) => (
-          (isAdminMode || (m.t[0] && m.t[1])) && (
-            <Matchup 
-              key={`r1-${i}-${m.t[0]?.id}-${m.t[1]?.id}`} conf={c} round="r1" idx={i} m={m} pm={P.r1[i]} 
-              onAdjust={onAdjust} isAdminMode={isAdminMode} onPick={onPick} onSeed={onSeed} 
-            />
-          )
-        ))}
-      </div>
 
-      <SectionLabel>Semifinales de Conferencia</SectionLabel>
-      {!isR2Ready && !isAdminMode && isR1Ready && (
-        <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500">
-          <p className="text-xs uppercase tracking-widest font-bold">Por definir por el Admin</p>
-        </div>
+      {showR2 && (
+        <>
+          <SectionLabel>Semifinales de Conferencia</SectionLabel>
+          {!isR2Ready && !isAdminMode && isR1Ready && !isAdmin && (
+            <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500">
+              <p className="text-xs uppercase tracking-widest font-bold">Por definir por el Admin</p>
+            </div>
+          )}
+          <div className="space-y-2">
+            {B.r2.map((m, i) => (
+              (isAdminMode || (m.t[0] && m.t[1])) && (
+                <Matchup 
+                  key={`r2-${i}-${m.t[0]?.id}-${m.t[1]?.id}`} conf={c} round="r2" idx={i} m={m} pm={P.r2[i]} 
+                  onAdjust={onAdjust} isAdminMode={isAdminMode} 
+                />
+              )
+            ))}
+          </div>
+        </>
       )}
-      <div className="space-y-2">
-        {B.r2.map((m, i) => (
-          (isAdminMode || (m.t[0] && m.t[1])) && (
+
+      {showR3 && (
+        <>
+          <SectionLabel>Final de Conferencia</SectionLabel>
+          {!isR3Ready && !isAdminMode && isR2Ready && !isAdmin && (
+            <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500">
+              <p className="text-xs uppercase tracking-widest font-bold">Por definir por el Admin</p>
+            </div>
+          )}
+          {(isAdminMode || (B.r3[0].t[0] && B.r3[0].t[1])) && (
             <Matchup 
-              key={`r2-${i}-${m.t[0]?.id}-${m.t[1]?.id}`} conf={c} round="r2" idx={i} m={m} pm={P.r2[i]} 
+              conf={c} round="r3" idx={0} m={B.r3[0]} pm={P.r3[0]} 
               onAdjust={onAdjust} isAdminMode={isAdminMode} 
             />
-          )
-        ))}
-      </div>
-
-      <SectionLabel>Final de Conferencia</SectionLabel>
-      {!isR3Ready && !isAdminMode && isR2Ready && (
-        <div className="bg-[#161922] border border-white/5 rounded-xl p-6 text-center text-slate-500">
-          <p className="text-xs uppercase tracking-widest font-bold">Por definir por el Admin</p>
-        </div>
-      )}
-      {(isAdminMode || (B.r3[0].t[0] && B.r3[0].t[1])) && (
-        <Matchup 
-          conf={c} round="r3" idx={0} m={B.r3[0]} pm={P.r3[0]} 
-          onAdjust={onAdjust} isAdminMode={isAdminMode} 
-        />
+          )}
+        </>
       )}
     </div>
   );
