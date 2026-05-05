@@ -37,7 +37,7 @@
     window.IS_ADMIN = user ? user.email === ADMIN : false;
     if (user) {
       showApp(user);
-      loadAll(user.uid);
+      loadAll(user.uid, user.email);
     } else {
       showLogin();
     }
@@ -53,8 +53,9 @@
 
     // ── FIX: setShared ahora devuelve la promesa para poder encadenar .then/.catch ──
     setShared  : (k,v) => set(ref(db,`shared/${k}`), v),
-    setUser    : (uid,k,v) => set(ref(db,`users/${uid}/${k}`), v),
-    getUser    : (uid,k)   => get(ref(db,`users/${uid}/${k}`)).then(s=>s.exists()?s.val():null),
+    // Predicciones guardadas por email (puntos reemplazados por comas para Firebase)
+    setUser    : (ekey,k,v) => set(ref(db,`users/${ekey}/${k}`), v),
+    getUser    : (ekey,k)   => get(ref(db,`users/${ekey}/${k}`)).then(s=>s.exists()?s.val():null),
 
     // ── FIX: onShared devuelve la función unsubscribe de Firebase ──
     onShared   : (k,cb)    => onValue(ref(db,`shared/${k}`), s=>cb(s.exists()?s.val():null)),
@@ -587,21 +588,20 @@ function showLoadingState(){
 // ════════════════════════════════════════════════════════
 // FIX PRINCIPAL: loadAll con lógica robusta
 // ════════════════════════════════════════════════════════
-function loadAll(uid){
+function loadAll(uid, email){
+  // Sanitizar email para usar como clave en Firebase (. → ,)
+  const ekey = (email||uid).replace(/\./g, ',');
+  // Guardar en FB_USER para usarlo en doSave
+  if(window.FB_USER) window.FB_USER._ekey = ekey;
+
   const run = () => {
     if(!window.FB){ setTimeout(run, 300); return; }
 
-    // ── 1. Escuchar cambios en adminResults EN TIEMPO REAL ──
-    // Esto funciona para TODOS los usuarios (admin y no admin)
-    // Firebase onValue dispara inmediatamente con el valor actual
-    // y luego cada vez que cambia
     window.FB.onShared('adminResults', d => {
-      // ── FIX PARPADEO: si el admin acaba de guardar, ignorar el echo
-      // que Firebase devuelve (ya tenemos el estado correcto en memoria)
       if(ADMIN_SAVING){
         ADMIN_SAVING = false;
         REAL_LOADED = true;
-        return; // No re-renderizar — el estado local ya es correcto
+        return;
       }
 
       if(d && typeof d === 'object'){
@@ -615,12 +615,11 @@ function loadAll(uid){
       renderAll();
     });
 
-    // ── 2. Cargar predicciones del usuario (lectura única) ──
+    // Cargar predicciones del usuario por su email-key
     const predKeys = ['r1','r2','r3','rf'];
     predKeys.forEach(k => {
-      window.FB.getUser(uid, 'pred_' + k).then(d => {
+      window.FB.getUser(ekey, 'pred_' + k).then(d => {
         if(d) PREDS[k] = deepMerge(freshPRED(), d);
-        // Renderizar solo si ya llegaron los datos del admin
         if(REAL_LOADED) renderAll();
       }).catch(err => {
         console.error('[NBAngs] Error cargando pred_'+k+':', err);
@@ -658,24 +657,23 @@ function scheduleSave(){
 }
 
 function doSave(){
-  const uid = window.FB_USER?.uid;
-  if(!uid || !window.FB) return;
+  const user = window.FB_USER;
+  if(!user || !window.FB) return;
+  const ekey = user._ekey || user.uid; // fallback por seguridad
 
   if(MODE === 'admin'){
-    // ── FIX PARPADEO: marcar que somos nosotros quien guarda
-    // para que el listener ignore el echo de Firebase
     ADMIN_SAVING = true;
     window.FB.setShared('adminResults', deepClone(REAL))
       .then(() => {
         showToast();
       })
       .catch(e => {
-        ADMIN_SAVING = false; // Si falla, resetear el flag
+        ADMIN_SAVING = false;
         console.error('[NBAngs] Error guardando adminResults:', e);
         alert('Error al guardar: ' + e.message);
       });
   } else {
-    window.FB.setUser(uid, 'pred_' + MODE, deepClone(PREDS[MODE]))
+    window.FB.setUser(ekey, 'pred_' + MODE, deepClone(PREDS[MODE]))
       .then(() => showToast())
       .catch(e => console.error('[NBAngs] Error guardando predicción:', e));
   }
