@@ -268,12 +268,13 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#08090d] flex items-center justify-center text-white font-['Barlow']">
+      <div className="min-h-screen bg-[#08090d] flex flex-col items-center justify-center text-white font-['Barlow']">
         <motion.div 
           animate={{ rotate: 360 }} 
           transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full"
+          className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full mb-4"
         />
+        <p className="text-slate-500 animate-pulse font-['Barlow_Condensed'] uppercase tracking-widest text-xs">Cargando NBAngs...</p>
       </div>
     );
   }
