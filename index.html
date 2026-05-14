@@ -667,34 +667,69 @@ function scheduleSave(){
   saveTimer = setTimeout(doSave, 600);
 }
 
-function doSave(){
+async function doSave(){
+
   const user = window.FB_USER;
+
   if(!user || !window.FB) return;
-  const ekey = user._ekey || (user.email||user.uid).replace(/\./g,',');
 
-  if(MODE === 'admin'){
-    // Marcamos el timestamp ANTES de enviar para poder filtrar el echo
-    ADMIN_SAVE_TS = Date.now();
-    setSaveIndicator('saving');
+  try{
 
-    window.FB.setShared('adminResults', deepClone(REAL))
-      .then(() => {
-        setSaveIndicator('saved');
-        showToast();
-        // Después de guardar, actualizamos REAL localmente desde lo que tenemos
-        // (no necesitamos esperar el echo de Firebase)
-        setTimeout(() => setSaveIndicator(''), 2500);
-      })
-      .catch(e => {
-        ADMIN_SAVE_TS = 0; // Resetear para que el listener pueda volver a funcionar
-        setSaveIndicator('');
-        console.error('[NBAngs] Error guardando adminResults:', e);
-        alert('❌ Error al guardar: ' + e.message);
-      });
-  } else {
-    window.FB.setUser(ekey, 'pred_' + MODE, deepClone(PREDS[MODE]))
-      .then(() => showToast())
-      .catch(e => console.error('[NBAngs] Error guardando predicción:', e));
+    // ─────────────────────────
+    // ADMIN SAVE
+    // ─────────────────────────
+    if(MODE === "admin"){
+
+      ADMIN_SAVING = true;
+
+      setSaveIndicator("saving");
+
+      // Guardamos snapshot limpio
+      const cleanData = deepClone(REAL);
+
+      await window.FB.saveAdminResults(
+        cleanData
+      );
+
+      // MUY IMPORTANTE:
+      // mantenemos el estado local
+      REAL = cleanData;
+
+      setSaveIndicator("saved");
+
+      showToast();
+
+      setTimeout(()=>{
+        ADMIN_SAVING = false;
+        setSaveIndicator("");
+      },800);
+
+      return;
+    }
+
+    // ─────────────────────────
+    // USER PREDS
+    // ─────────────────────────
+    await window.FB.savePrediction(
+      user.email,
+      "pred_" + MODE,
+      deepClone(PREDS[MODE])
+    );
+
+    showToast();
+
+  }catch(err){
+
+    ADMIN_SAVING = false;
+
+    console.error(err);
+
+    alert(
+      "Error guardando:\n" +
+      err.message
+    );
+
+    setSaveIndicator("");
   }
 }
 
