@@ -42,36 +42,33 @@
   });
 
   window.FB = {
-    // Guardar compartido
-    setShared: async (k, v) => {
-      await set(ref(db, `shared/${k}`), v);
+  // ---------- SHARED ----------
 
-      console.log(
-        "[FB OK]",
-        `shared/${k}`
-      );
-    },
+  setShared: async (k, v) => {
+    await set(ref(db, `shared/${k}`), v);
 
-    // Escuchar compartido
-    onShared: (k, cb) =>
-     onValue(
+    console.log("[FB OK]", `shared/${k}`);
+  },
+
+  getShared: (k) =>
+    get(ref(db, `shared/${k}`))
+      .then(s => s.exists() ? s.val() : null),
+
+  onShared: (k, cb) =>
+    onValue(
       ref(db, `shared/${k}`),
       s => cb(s.exists() ? s.val() : null)
-     ),
+    ),
 
-    // Leer una vez
-    getShared: (k) =>
-      get(ref(db, `shared/${k}`))
-        .then(s => s.exists() ? s.val() : null),
+  // ---------- USER ----------
 
-    // Usuario
-    setUser: (ekey, k, v) =>
-      set(ref(db, `users/${ekey}/${k}`), v),
+  setUser: (ekey, k, v) =>
+    set(ref(db, `users/${ekey}/${k}`), v),
 
-    getUser: (ekey, k) =>
-      get(ref(db, `users/${ekey}/${k}`))
-        .then(s => s.exists() ? s.val() : null),
-  };
+  getUser: (ekey, k) =>
+    get(ref(db, `users/${ekey}/${k}`))
+      .then(s => s.exists() ? s.val() : null),
+};
   
     // Predicciones guardadas bajo users/{ekey}/
     setUser    : (ekey,k,v) => set(ref(db,`users/${ekey}/${k}`), v),
