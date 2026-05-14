@@ -49,7 +49,24 @@
                           .catch(err=>setAuthErr(err.message)),
     logout     : ()    => signOut(auth),
 
-    setShared  : (k,v) => set(ref(db,`shared/${k}`), v),
+    setShared : async (k,v) => {
+
+  console.log(
+    "[FB WRITE]",
+    `shared/${k}`,
+    v
+  );
+
+  await set(
+    ref(db,`shared/${k}`),
+    v
+  );
+
+  console.log(
+    "[FB OK]",
+    `shared/${k}`
+  );
+},
     // Predicciones guardadas bajo users/{ekey}/
     setUser    : (ekey,k,v) => set(ref(db,`users/${ekey}/${k}`), v),
     getUser    : (ekey,k)   => get(ref(db,`users/${ekey}/${k}`)).then(s=>s.exists()?s.val():null),
