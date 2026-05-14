@@ -72,6 +72,17 @@
       get(ref(db, `users/${ekey}/${k}`))
         .then(s => s.exists() ? s.val() : null),
   };
+  await window.FB.setShared(
+   "adminResults",
+   data
+  );
+  window.FB.onShared(
+   "adminResults",
+   (data) => {
+     console.log(data);
+     renderBracket(data);
+   }
+  );
     // Predicciones guardadas bajo users/{ekey}/
     setUser    : (ekey,k,v) => set(ref(db,`users/${ekey}/${k}`), v),
     getUser    : (ekey,k)   => get(ref(db,`users/${ekey}/${k}`)).then(s=>s.exists()?s.val():null),
