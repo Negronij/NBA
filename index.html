@@ -684,15 +684,15 @@ async function doSave(){
 
       setSaveIndicator("saving");
 
-      // Guardamos snapshot limpio
       const cleanData = deepClone(REAL);
 
-      await window.FB.saveAdminResults(
+      // USAMOS setShared
+      await window.FB.setShared(
+        "adminResults",
         cleanData
       );
 
-      // MUY IMPORTANTE:
-      // mantenemos el estado local
+      // mantenemos estado local
       REAL = cleanData;
 
       setSaveIndicator("saved");
@@ -708,10 +708,15 @@ async function doSave(){
     }
 
     // ─────────────────────────
-    // USER PREDS
+    // USER PREDICTIONS
     // ─────────────────────────
-    await window.FB.savePrediction(
-      user.email,
+    const ekey =
+      user._ekey ||
+      (user.email || user.uid)
+        .replace(/\./g,",");
+
+    await window.FB.setUser(
+      ekey,
       "pred_" + MODE,
       deepClone(PREDS[MODE])
     );
