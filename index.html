@@ -8,28 +8,13 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup,
+           signInWithEmailAndPassword, createUserWithEmailAndPassword,
+           signOut, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getDatabase, ref, set, get, onValue }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-  import {
-    getAuth,
-    GoogleAuthProvider,
-    signInWithPopup,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    signOut,
-    onAuthStateChanged
-  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
-  import {
-    getDatabase,
-    ref,
-    set,
-    get,
-    onValue
-  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
-  // ─────────────────────────────────────────────
-  // FIREBASE CONFIG
-  // ─────────────────────────────────────────────
   const CFG = {
     apiKey:"AIzaSyAY9Byo6XKRTys4zRaMcP57v2hUiLcwxvw",
     authDomain:"nbangs-a10fc.firebaseapp.com",
@@ -43,187 +28,34 @@
   const app  = initializeApp(CFG);
   const auth = getAuth(app);
   const db   = getDatabase(app);
+  const ADMIN_EMAIL = 'juan.ignacio.negroni@gmail.com';
 
-  const ADMIN_EMAIL = "juan.ignacio.negroni@gmail.com";
-
-  // ─────────────────────────────────────────────
-  // HELPERS
-  // ─────────────────────────────────────────────
-  function safeEmailKey(email){
-    return (email || "")
-      .replace(/\./g,",")
-      .replace(/\#/g,",")
-      .replace(/\$/g,",")
-      .replace(/\[/g,",")
-      .replace(/\]/g,",");
-  }
-
-  // ─────────────────────────────────────────────
-  // GLOBAL API
-  // ─────────────────────────────────────────────
-  window.FB = {
-
-    // LOGIN
-    loginEmail : async (email,password)=>{
-      try{
-        return await signInWithEmailAndPassword(auth,email,password);
-      }catch(e){
-        return await createUserWithEmailAndPassword(auth,email,password);
-      }
-    },
-
-    loginGoogle : ()=>{
-      return signInWithPopup(auth,new GoogleAuthProvider());
-    },
-
-    logout : ()=>{
-      return signOut(auth);
-    },
-
-    // ───────────────────────────
-    // SHARED DATA (ADMIN)
-    // ───────────────────────────
-    saveAdminResults : async(data)=>{
-      console.log("[FB] Saving adminResults...", data);
-
-      await set(
-        ref(db,"shared/adminResults"),
-        JSON.parse(JSON.stringify(data))
-      );
-
-      console.log("[FB] adminResults saved");
-    },
-
-    listenAdminResults : (callback)=>{
-      const r = ref(db,"shared/adminResults");
-
-      onValue(r,(snap)=>{
-        const val = snap.exists() ? snap.val() : null;
-
-        console.log("[FB] adminResults updated:", val);
-
-        callback(val);
-      });
-    },
-
-    getAdminResults : async()=>{
-      const snap = await get(ref(db,"shared/adminResults"));
-      return snap.exists() ? snap.val() : null;
-    },
-
-    // ───────────────────────────
-    // USER PREDICTIONS
-    // ───────────────────────────
-    savePrediction : async(email,key,data)=>{
-      const ekey = safeEmailKey(email);
-
-      await set(
-        ref(db,`users/${ekey}/${key}`),
-        JSON.parse(JSON.stringify(data))
-      );
-    },
-
-    getPrediction : async(email,key)=>{
-      const ekey = safeEmailKey(email);
-
-      const snap = await get(
-        ref(db,`users/${ekey}/${key}`)
-      );
-
-      return snap.exists() ? snap.val() : null;
-    }
-  };
-
-  // ─────────────────────────────────────────────
-  // AUTH STATE
-  // ─────────────────────────────────────────────
-  onAuthStateChanged(auth,(user)=>{
-
-    window.FB_USER = user || null;
-
-    window.IS_ADMIN =
-      !!user &&
-      user.email === ADMIN_EMAIL;
-
-    console.log("[AUTH]",user?.email);
-
-    if(user){
-
+  onAuthStateChanged(auth, user => {
+    window.FB_USER  = user || null;
+    window.IS_ADMIN = user ? user.email === ADMIN_EMAIL : false;
+    if (user) {
       showApp(user);
-
-      // ─────────────────────────
-      // LISTENER REALTIME ADMIN
-      // ─────────────────────────
-      window.FB.listenAdminResults((data)=>{
-
-        if(data){
-
-          REAL = deepMerge(
-            freshREAL(),
-            data
-          );
-
-          propagateREAL();
-        }else{
-          REAL = freshREAL();
-        }
-
-        REAL_LOADED = true;
-
-        renderAll();
-      });
-
-      // ─────────────────────────
-      // LOAD USER PREDS
-      // ─────────────────────────
-      loadPredictions(user);
-
-    }else{
-
+      loadAll(user.uid, user.email);
+    } else {
       showLogin();
     }
   });
 
-  // ─────────────────────────────────────────────
-  // LOAD PREDICTIONS
-  // ─────────────────────────────────────────────
-  async function loadPredictions(user){
+  window.FB = {
+    loginEmail : (e,p) => signInWithEmailAndPassword(auth,e,p)
+                          .catch(()=>createUserWithEmailAndPassword(auth,e,p))
+                          .catch(err=>setAuthErr(err.message)),
+    loginGoogle: ()    => signInWithPopup(auth, new GoogleAuthProvider())
+                          .catch(err=>setAuthErr(err.message)),
+    logout     : ()    => signOut(auth),
 
-    PREDS_LOADED = 0;
-
-    const keys = ["r1","r2","r3","rf"];
-
-    for(const k of keys){
-
-      try{
-
-        const data =
-          await window.FB.getPrediction(
-            user.email,
-            "pred_" + k
-          );
-
-        if(data){
-          PREDS[k] = deepMerge(
-            freshPRED(),
-            data
-          );
-        }
-
-      }catch(err){
-
-        console.error(
-          "[FB] Error loading pred",
-          k,
-          err
-        );
-      }
-
-      PREDS_LOADED++;
-    }
-
-    renderAll();
-  }
+    setShared  : (k,v) => set(ref(db,`shared/${k}`), v),
+    // Predicciones guardadas bajo users/{ekey}/
+    setUser    : (ekey,k,v) => set(ref(db,`users/${ekey}/${k}`), v),
+    getUser    : (ekey,k)   => get(ref(db,`users/${ekey}/${k}`)).then(s=>s.exists()?s.val():null),
+    onShared   : (k,cb)     => onValue(ref(db,`shared/${k}`), s=>cb(s.exists()?s.val():null)),
+    getShared  : (k)        => get(ref(db,`shared/${k}`)).then(s=>s.exists()?s.val():null),
+  };
 </script>
 
 <style>
@@ -700,7 +532,7 @@ let PREDS_LOADED = 0; // cuenta cuántas de las 4 pred keys ya llegaron
 
 // ── Flag para evitar que el echo de Firebase sobreescriba mientras admin guarda ──
 // Ahora es un timestamp: ignoramos callbacks que lleguen dentro de 3s del save
-let ADMIN_SAVE_TS = 0;
+let ADMIN_SAVING = false;
 
 let MODE = 'r1';
 let CONF = 'east';
@@ -758,23 +590,30 @@ function loadAll(uid, email){
 
     // ── Listener en tiempo real para resultados del admin ──
     window.FB.onShared('adminResults', d => {
-      // Si acaba de guardar el admin, ignoramos el primer echo
-      // pero sólo si no pasaron más de 3 segundos
-      const now = Date.now();
-      if(window.IS_ADMIN && (now - ADMIN_SAVE_TS) < 3000){
-        REAL_LOADED = true;
-        renderAll();
-        return;
+
+      // Evita rollback visual del admin
+      // mientras Firebase sincroniza.
+
+      if(window.IS_ADMIN && ADMIN_SAVING){
+       return;
       }
 
       if(d && typeof d === 'object'){
-        REAL = deepMerge(freshREAL(), d);
-        propagateREAL();
+
+       REAL = deepMerge(
+         freshREAL(),
+         d
+       );
+
+       propagateREAL();
+
       } else {
-        REAL = freshREAL();
+
+       REAL = freshREAL();
       }
 
       REAL_LOADED = true;
+
       renderAll();
     });
 
@@ -828,57 +667,34 @@ function scheduleSave(){
   saveTimer = setTimeout(doSave, 600);
 }
 
-async function doSave(){
-
+function doSave(){
   const user = window.FB_USER;
-
   if(!user || !window.FB) return;
+  const ekey = user._ekey || (user.email||user.uid).replace(/\./g,',');
 
-  try{
+  if(MODE === 'admin'){
+    // Marcamos el timestamp ANTES de enviar para poder filtrar el echo
+    ADMIN_SAVE_TS = Date.now();
+    setSaveIndicator('saving');
 
-    // ─────────────────────────
-    // ADMIN SAVE
-    // ─────────────────────────
-    if(MODE === "admin"){
-
-      setSaveIndicator("saving");
-
-      await window.FB.saveAdminResults(
-        deepClone(REAL)
-      );
-
-      setSaveIndicator("saved");
-
-      showToast();
-
-      setTimeout(()=>{
-        setSaveIndicator("");
-      },2000);
-
-      return;
-    }
-
-    // ─────────────────────────
-    // USER PRED SAVE
-    // ─────────────────────────
-    await window.FB.savePrediction(
-      user.email,
-      "pred_" + MODE,
-      deepClone(PREDS[MODE])
-    );
-
-    showToast();
-
-  }catch(err){
-
-    console.error(err);
-
-    alert(
-      "Error guardando:\n" +
-      err.message
-    );
-
-    setSaveIndicator("");
+    window.FB.setShared('adminResults', deepClone(REAL))
+      .then(() => {
+        setSaveIndicator('saved');
+        showToast();
+        // Después de guardar, actualizamos REAL localmente desde lo que tenemos
+        // (no necesitamos esperar el echo de Firebase)
+        setTimeout(() => setSaveIndicator(''), 2500);
+      })
+      .catch(e => {
+        ADMIN_SAVE_TS = 0; // Resetear para que el listener pueda volver a funcionar
+        setSaveIndicator('');
+        console.error('[NBAngs] Error guardando adminResults:', e);
+        alert('❌ Error al guardar: ' + e.message);
+      });
+  } else {
+    window.FB.setUser(ekey, 'pred_' + MODE, deepClone(PREDS[MODE]))
+      .then(() => showToast())
+      .catch(e => console.error('[NBAngs] Error guardando predicción:', e));
   }
 }
 
