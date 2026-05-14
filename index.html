@@ -42,31 +42,36 @@
   });
 
   window.FB = {
-    loginEmail : (e,p) => signInWithEmailAndPassword(auth,e,p)
-                          .catch(()=>createUserWithEmailAndPassword(auth,e,p))
-                          .catch(err=>setAuthErr(err.message)),
-    loginGoogle: ()    => signInWithPopup(auth, new GoogleAuthProvider())
-                          .catch(err=>setAuthErr(err.message)),
-    logout     : ()    => signOut(auth),
+    // Guardar compartido
+    setShared: async (k, v) => {
+      await set(ref(db, `shared/${k}`), v);
 
-    setShared : async (k,v) => {
+      console.log(
+        "[FB OK]",
+        `shared/${k}`
+      );
+    },
 
-  console.log(
-    "[FB WRITE]",
-    `shared/${k}`,
-    v
-  );
+    // Escuchar compartido
+    onShared: (k, cb) =>
+     onValue(
+      ref(db, `shared/${k}`),
+      s => cb(s.exists() ? s.val() : null)
+     ),
 
-  await set(
-    ref(db,`shared/${k}`),
-    v
-  );
+    // Leer una vez
+    getShared: (k) =>
+      get(ref(db, `shared/${k}`))
+        .then(s => s.exists() ? s.val() : null),
 
-  console.log(
-    "[FB OK]",
-    `shared/${k}`
-  );
-},
+    // Usuario
+    setUser: (ekey, k, v) =>
+      set(ref(db, `users/${ekey}/${k}`), v),
+
+    getUser: (ekey, k) =>
+      get(ref(db, `users/${ekey}/${k}`))
+        .then(s => s.exists() ? s.val() : null),
+  };
     // Predicciones guardadas bajo users/{ekey}/
     setUser    : (ekey,k,v) => set(ref(db,`users/${ekey}/${k}`), v),
     getUser    : (ekey,k)   => get(ref(db,`users/${ekey}/${k}`)).then(s=>s.exists()?s.val():null),
